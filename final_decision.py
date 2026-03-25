@@ -12,7 +12,8 @@ import time
 import numpy as np
 import copy
 from sklearn.model_selection import train_test_split
-from util import *
+from eeg_win_stack.tools.paths import findall
+from eeg_win_stack.tools.metrics import find_all_zero
 from itertools import product
 
 N_REPETITION=[5]
