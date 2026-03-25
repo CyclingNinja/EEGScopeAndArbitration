@@ -14,7 +14,17 @@ from braindecode.datautil import load_concat_dataset
 from tcn_1 import TCN_1
 from hybrid_1 import HybridNet_1
 from vit import ViT
-from util import *
+from eeg_win_stack.io.eeg_loading import custom_crop
+from eeg_win_stack.io.labeling import relabel
+from eeg_win_stack.tools.filters import (
+    remove_tuab_from_dataset,
+    select_by_duration,
+    select_by_channel,
+    select_labeled,
+)
+from eeg_win_stack.tools.metrics import MCC, con_mat, find_all_zero, weight_function
+from eeg_win_stack.tools.paths import findall
+from eeg_win_stack.tools.splits import split_data
 from train_and_eval_config import *
 from batch_test_hyperparameters import *
 
