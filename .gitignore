@@ -57,6 +57,7 @@ lib64/
 parts/
 sdist/
 var/
+data/
 *.egg-info/
 .installed.cfg
 *.egg
@@ -85,10 +86,6 @@ coverage.xml
 # Translations
 *.mo
 *.pot
-
-# Django stuff:
-*.log
-local_settings.py
 
 # Flask stuff:
 instance/
@@ -119,11 +116,6 @@ celerybeat-schedule
 venv/
 ENV/
 
-# Spyder project settings
-.spyderproject
-
-# Rope project settings
-.ropeproject
 ### VirtualEnv template
 # Virtualenv
 # http://iamzed.com/2009/05/07/a-primer-on-virtualenv/
