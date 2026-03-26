@@ -18,7 +18,6 @@ tueg_labels_1.csv
 training_detail_tueg_tuab.csv
 requirements.txt
 deep4_module.py
-test*
 
 saved_models/
 leaf/results
@@ -159,7 +158,7 @@ uv.lock
 # Sensitive or high-churn files
 .idea/**/dataSources/
 .idea/**/dataSources.ids
-.idea/**/dataSources.local.xml
+.idea/**/ataSources.local.xml
 .idea/**/sqlDataSources.xml
 .idea/**/dynamic.xml
 .idea/**/uiDesigner.xml
