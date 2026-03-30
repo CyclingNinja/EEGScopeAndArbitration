@@ -73,6 +73,7 @@ extend-ignore = [
 ]
 "test_*.py" = [
   "E402", # Module level import not at top of cell
+  "SLF001" # access to a private member
 ]
 
 [lint.pydocstyle]

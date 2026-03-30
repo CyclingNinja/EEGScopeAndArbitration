@@ -2,6 +2,7 @@
 
 from eeg_win_stack.io.eeg_loading import custom_crop, load_brainvision_as_windows
 from eeg_win_stack.io.labeling import relabel
+from eeg_win_stack.tools.dataset_splitting import split_data
 from eeg_win_stack.tools.filters import (
     check_inf,
     exclude_by_name,
@@ -12,7 +13,7 @@ from eeg_win_stack.tools.filters import (
     select_labeled,
 )
 from eeg_win_stack.tools.metrics import (
-    MCC,
+    matthews_correlation_coefficient,
     con_mat,
     find_all_zero,
     timecost,
@@ -29,4 +30,3 @@ from eeg_win_stack.tools.paths import (
     session_key,
     time_key,
 )
-from eeg_win_stack.tools.splits import split_data
