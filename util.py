@@ -242,10 +242,12 @@ def con_mat(starts,b,c,use_prob=False,prob=None):
     # print(predict)
     # print(TT,TF,FT,FF)
     return np.array([[FF,TF],[FT,TT]])
+
 def timecost(time_dutation):
     m, s = divmod(time_dutation, 60)
     h, m = divmod(m, 60)
     return "%dh:%dm:%ds" % (h, m, s)
+
 def select_by_duration(ds, tmin=0, tmax=None):
     if tmax is None:
         tmax = np.inf

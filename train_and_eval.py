@@ -1,6 +1,7 @@
 from itertools import product
 import time
 import pandas as pd
+import numpy as np
 from bayes_opt import BayesianOptimization
 from bayes_opt import SequentialDomainReductionTransformer
 import torch
@@ -9,7 +10,7 @@ from braindecode.preprocessing import create_fixed_length_windows
 from braindecode.models import ShallowFBCSPNet, Deep4Net,EEGNetv4,EEGNetv1,EEGResNet,TCN,SleepStagerBlanco2020,USleep,\
                                 TIDNet,get_output_shape,HybridNet, SleepStagerChambon2018
 from braindecode.preprocessing import (
-    exponential_moving_standardize, preprocess, Preprocessor, scale)
+    exponential_moving_standardize, preprocess, Preprocessor)
 from braindecode.datautil import load_concat_dataset
 from tcn_1 import TCN_1
 from hybrid_1 import HybridNet_1
@@ -17,11 +18,15 @@ from vit import ViT
 from util import *
 from train_and_eval_config import *
 from batch_test_hyperparameters import *
-
-
+from skorch.callbacks import LRScheduler
+from skorch.helper import predefined_split
+from braindecode import EEGClassifier
+from skorch.callbacks import Checkpoint,EarlyStopping
+import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
 from torch.nn.functional import elu,relu,gelu
-
-
+from sklearn.metrics import confusion_matrix
+from braindecode.visualization import plot_confusion_matrix
 
 
 import warnings
@@ -53,33 +58,67 @@ with open(log_path,'a') as f:
      'sampling_freq','test_on_eval','split_way','train_size','valid_size','test_size','shuffle',\
      'model_name','final_conv_length','window_stride_samples','relabel_dataset','relabel_label',\
      'channels','dropout','precision_per_recording','recall_per_recording',\
-
-     'acc_per_recording','mcc','mcc_per_recording','activation','remove_attribute'])
+     'acc_per_recording','mcc','mcc_per_recording','deep4_activation','remove_attribute'])
 
 
 
 # Iterate over data/preproc parameters
-for (random_state,tuab,tueg,n_tuab,n_tueg,n_load,preload,window_len_s,\
-     tuab_path,tueg_path,saved_data,saved_path,saved_windows_data,saved_windows_path,\
-     load_saved_data,load_saved_windows,bandpass_filter,low_cut_hz,high_cut_hz,\
-     standardization,factor_new,init_block_size,n_jobs,tmin,tmax,multiple,sec_to_cut,duration_recording_sec,max_abs_val,\
-     sampling_freq,test_on_eval,split_way,train_size,valid_size,test_size,shuffle,window_stride_samples,\
-     relabel_dataset,relabel_label,channels,remove_attribute,activation) in product(
+for (random_state, tuab, tueg, n_tuab, n_tueg, n_load, preload, window_len_s, \
+     tuab_path, tueg_path, saved_data, saved_path, saved_windows_data, saved_windows_path, \
+     load_saved_data, load_saved_windows, bandpass_filter, low_cut_hz, high_cut_hz, \
+     standardization, factor_new, init_block_size, n_jobs, tmin, tmax, multiple, sec_to_cut, duration_recording_sec, max_abs_val, \
+     sampling_freq, test_on_eval, split_way, train_size, valid_size, test_size, shuffle, window_stride_samples, \
+     relabel_dataset, relabel_label, channels, remove_attribute, deep4_activation) in product(
             RANDOM_STATE,TUAB,TUEG,N_TUAB,N_TUEG,N_LOAD,PRELOAD,\
             WINDOW_LEN_S,TUAB_PATH,TUEG_PATH,SAVED_DATA,SAVED_PATH,SAVED_WINDOWS_DATA,\
             SAVED_WINDOWS_PATH,LOAD_SAVED_DATA,LOAD_SAVED_WINDOWS,BANDPASS_FILTER,\
             LOW_CUT_HZ,HIGH_CUT_HZ,STANDARDIZATION,FACTOR_NEW,INIT_BLOCK_SIZE,N_JOBS,\
             TMIN,TMAX,MULTIPLE,SEC_TO_CUT,\
             DURATION_RECORDING_SEC,MAX_ABS_VAL,SAMPLING_FREQ,TEST_ON_VAL,SPLIT_WAY,\
-            TRAIN_SIZE,VALID_SIZE,TEST_SIZE,SHUFFLE,WINDOW_STRIDE_SAMPLES,RELABEL_DATASET,RELABEL_LABEL,CHANNELS,REMOVE_ATTRIBUTE,ACTIVATION):
-    print(random_state, tuab, tueg, n_tuab, n_tueg, n_load, preload, window_len_s, \
-    tuab_path, tueg_path, saved_data, saved_path, saved_windows_data, saved_windows_path, \
-    load_saved_data, load_saved_windows, bandpass_filter, low_cut_hz, high_cut_hz, \
-    standardization, factor_new, init_block_size, n_jobs, \
-    tmin, tmax, multiple, sec_to_cut, duration_recording_sec, max_abs_val, \
-    sampling_freq, test_on_eval, split_way, train_size, valid_size, test_size, shuffle, \
-    relabel_dataset, relabel_label, \
-    channels,remove_attribute)
+            TRAIN_SIZE,VALID_SIZE,TEST_SIZE,SHUFFLE,WINDOW_STRIDE_SAMPLES,RELABEL_DATASET,RELABEL_LABEL,CHANNELS,REMOVE_ATTRIBUTE,DEEP4_ACTIVATION):
+    print(f"""
+        random_state={random_state}
+        tuab={tuab}
+        tueg={tueg}
+        n_tuab={n_tuab}
+        n_tueg={n_tueg}
+        n_load={n_load}
+        preload={preload}
+        window_len_s={window_len_s}
+        tuab_path={tuab_path}
+        tueg_path={tueg_path}
+        saved_data={saved_data}
+        saved_path={saved_path}
+        saved_windows_data={saved_windows_data}
+        saved_windows_path={saved_windows_path}
+        load_saved_data={load_saved_data}
+        load_saved_windows={load_saved_windows}
+        bandpass_filter={bandpass_filter}
+        low_cut_hz={low_cut_hz}
+        high_cut_hz={high_cut_hz}
+        standardization={standardization}
+        factor_new={factor_new}
+        init_block_size={init_block_size}
+        n_jobs={n_jobs}
+        tmin={tmin}
+        tmax={tmax}
+        multiple={multiple}
+        sec_to_cut={sec_to_cut}
+        duration_recording_sec={duration_recording_sec}
+        max_abs_val={max_abs_val}
+        sampling_freq={sampling_freq}
+        test_on_eval={test_on_eval}
+        split_way={split_way}
+        train_size={train_size}
+        valid_size={valid_size}
+        test_size={test_size}
+        shuffle={shuffle}
+        relabel_dataset={relabel_dataset}
+        relabel_label={relabel_label}
+        channels={channels}
+        remove_attribute={remove_attribute}
+        """.strip()
+    )
 
     cuda = torch.cuda.is_available()  # check if GPU is available, if True chooses to use it
     device = 'cuda' if cuda else 'cpu'
@@ -115,9 +154,12 @@ for (random_state,tuab,tueg,n_tuab,n_tueg,n_load,preload,window_len_s,\
         )
         else:
             tuab_ids = list(range(n_tuab)) if n_tuab else None
-            ds_tuab= TUHAbnormal(     #load tuab
-                tuab_path, recording_ids=tuab_ids,target_name='pathological',
-                preload=preload)
+            ds_tuab= TUHAbnormal(
+                tuab_path,
+                recording_ids=tuab_ids,
+                target_name='pathological',
+                preload=preload
+            )
             print(ds_tuab.description)
 
             if tueg:  #load tueg
@@ -152,11 +194,11 @@ for (random_state,tuab,tueg,n_tuab,n_tueg,n_load,preload,window_len_s,\
                 Preprocessor(fn='resample', sfreq=sampling_freq),  # resampling the data
                 Preprocessor(custom_crop, tmin=sec_to_cut, tmax=duration_recording_sec+sec_to_cut, include_tmax=False,
                              apply_on_array=False),  #select desired segment of recordings
-                Preprocessor(scale, factor=1e6, apply_on_array=True),  # Convert from V to uV
+                Preprocessor(np.multiply, factor=1e6, apply_on_array=True),  # Convert from V to uV
                 Preprocessor(np.clip, a_min=-max_abs_val, a_max=max_abs_val, apply_on_array=True),  #Clip the data within the specified range
             ]
             if multiple: #scaling
-                preprocessors.append(Preprocessor(scale, factor=multiple,apply_on_array=True))
+                preprocessors.append(Preprocessor(np.multiply, factor=multiple,apply_on_array=True))
             if bandpass_filter: #filtering
                 preprocessors.append(Preprocessor('filter', l_freq=low_cut_hz, h_freq=high_cut_hz))
             if standardization:
@@ -221,12 +263,13 @@ for (random_state,tuab,tueg,n_tuab,n_tueg,n_load,preload,window_len_s,\
 
 
         mne.set_log_level(mne_log_level)
+        # TODO: figure out what these activation strategies do
         def exp(dropout=0.2):
-            if activation=='elu':  #choose the activation function
+            if deep4_activation== 'elu':  #choose the activation function
                 nonlin=elu
-            elif activation=='relu':
+            elif deep4_activation== 'relu':
                 nonlin=relu
-            elif activation=='gelu':
+            elif deep4_activation== 'gelu':
                 nonlin=gelu
 
             #select the model(first-stage)
@@ -285,10 +328,10 @@ for (random_state,tuab,tueg,n_tuab,n_tueg,n_load,preload,window_len_s,\
             # Start training loop
             model_training_start = time.time()
 
-            from skorch.callbacks import LRScheduler
-            from skorch.helper import predefined_split
-            from braindecode import EEGClassifier
-            from skorch.callbacks import Checkpoint,EarlyStopping
+
+
+
+
 
             # set the learning rate scheduler
             monitor = lambda net: all(net.history[-1, ('train_loss_best', 'valid_loss_best')])
@@ -300,7 +343,7 @@ for (random_state,tuab,tueg,n_tuab,n_tueg,n_load,preload,window_len_s,\
                 callbacks.append(('es',es))
 
             #Set various parameters for training
-            clf = EEGClassifier(
+            eeg_classifier = EEGClassifier(
                 model,
                 criterion=torch.nn.NLLLoss(weight_function(train_set.get_metadata().target,device)),
                 optimizer=torch.optim.AdamW,
@@ -320,23 +363,24 @@ for (random_state,tuab,tueg,n_tuab,n_tueg,n_load,preload,window_len_s,\
             # in the dataset.
             global i
             if not test_model: # Choose to load a model or train a model
-                clf.fit(train_set, y=None, epochs=n_epochs)
-                clf.save_params('./saved_models/'+model_name+time.strftime('%Y-%m-%d_%H-%M-%S',time.localtime(time.time()))+'params.pt')
+                eeg_classifier.fit(train_set, y=None, epochs=n_epochs)
+                eeg_classifier.save_params('./saved_models/'+model_name+time.strftime('%Y-%m-%d_%H-%M-%S',time.localtime(time.time()))+'params.pt')
 
             else:
-                clf.initialize()
-                clf.load_params('./saved_models/'+params[i])
+                eeg_classifier.initialize()
+                eeg_classifier.load_params('./saved_models/'+params[i])
             model_training_time = time.time() - model_training_start
 
-            import matplotlib.pyplot as plt
-            from matplotlib.lines import Line2D
+
+
             if not test_model:
+                # TODO: pull this out to a set of plotting standards
                 # Extract loss and accuracy values for plotting from history object
                 results_columns = ['train_loss', 'valid_loss', 'train_accuracy', 'valid_accuracy']
                 # print(clf.history)
 
-                df = pd.DataFrame(clf.history[:, results_columns], columns=results_columns,
-                                  index=clf.history[:, 'epoch'])
+                df = pd.DataFrame(eeg_classifier.history[:, results_columns], columns=results_columns,
+                                  index=eeg_classifier.history[:, 'epoch'])
                 # get percent of misclass for better visual comparison to loss
                 df = df.assign(train_misclass=100 - 100 * df.train_accuracy,
                                valid_misclass=100 - 100 * df.valid_accuracy)
@@ -360,22 +404,19 @@ for (random_state,tuab,tueg,n_tuab,n_tueg,n_load,preload,window_len_s,\
                     ax1.set_xlabel("Epoch", fontsize=14)
 
                     # where some data has already been plotted to ax
-                    handles = []
-                    handles.append(Line2D([0], [0], color='black', linewidth=1, linestyle='-', label='Train'))
-                    handles.append(Line2D([0], [0], color='black', linewidth=1, linestyle=':', label='Valid'))
+                    handles = [Line2D([0], [0], color='black', linewidth=1, linestyle='-', label='Train'),
+                               Line2D([0], [0], color='black', linewidth=1, linestyle=':', label='Valid')]
                     plt.legend(handles, [h.get_label() for h in handles], fontsize=14)
                     plt.tight_layout()
                     plt.show()
 
-            from sklearn.metrics import confusion_matrix
-            from braindecode.visualization import plot_confusion_matrix
 
             # test on the testset
             print('test:',test_set.description)
             y_true = test_set.get_metadata().target
             starts=find_all_zero(test_set.get_metadata()['i_window_in_trial'].tolist())
-            y_pred = clf.predict(test_set)
-            y_pred_proba=clf.predict_proba(test_set)
+            y_pred = eeg_classifier.predict(test_set)
+            y_pred_proba=eeg_classifier.predict_proba(test_set)
             print('diff:',sum((np.exp(np.array(y_pred_proba[:,1]))>0.5)!=y_pred))
 
             # generate confusion matrices
@@ -418,25 +459,25 @@ for (random_state,tuab,tueg,n_tuab,n_tueg,n_load,preload,window_len_s,\
                         writer.writerow([df.loc[i2+1][0],df.loc[i2+1][1],df.loc[i2+1][2],df.loc[i2+1][3]])
 
 
-                    writer.writerow([df.loc[his_len][0],df.loc[his_len][1],df.loc[his_len][2],df.loc[his_len][3],etl_time,\
-                 model_training_time,acc,precision,recall,i,random_state,tuab,tueg,n_tuab,n_tueg,n_load,preload,\
-                 window_len_s,tuab_path,tueg_path,saved_data,saved_path,saved_windows_data,saved_windows_path,\
-                 load_saved_data,load_saved_windows,bandpass_filter,low_cut_hz,high_cut_hz,\
-                 standardization,factor_new,init_block_size,n_jobs,n_classes,lr,weight_decay,\
-                 batch_size,n_epochs,tmin,tmax,multiple,sec_to_cut,duration_recording_sec,max_abs_val,\
-                 sampling_freq,test_on_eval,split_way,train_size,valid_size,test_size,shuffle,\
-                 model_name,final_conv_length,window_stride_samples,relabel_dataset,relabel_label,\
-                 channels,dropout, precision_per_recording,recall_per_recording,acc_per_recording,mcc,mcc_per_recording,activation,remove_attribute])
+                    writer.writerow([df.loc[his_len][0], df.loc[his_len][1], df.loc[his_len][2], df.loc[his_len][3], etl_time, \
+                                     model_training_time, acc, precision, recall, i, random_state, tuab, tueg, n_tuab, n_tueg, n_load, preload, \
+                                     window_len_s, tuab_path, tueg_path, saved_data, saved_path, saved_windows_data, saved_windows_path, \
+                                     load_saved_data, load_saved_windows, bandpass_filter, low_cut_hz, high_cut_hz, \
+                                     standardization, factor_new, init_block_size, n_jobs, n_classes, lr, weight_decay, \
+                                     batch_size, n_epochs, tmin, tmax, multiple, sec_to_cut, duration_recording_sec, max_abs_val, \
+                                     sampling_freq, test_on_eval, split_way, train_size, valid_size, test_size, shuffle, \
+                                     model_name, final_conv_length, window_stride_samples, relabel_dataset, relabel_label, \
+                                     channels, dropout, precision_per_recording, recall_per_recording, acc_per_recording, mcc, mcc_per_recording, deep4_activation, remove_attribute])
                 else:
-                    writer.writerow(['test_model','test_model','test_model','test_model',etl_time,\
-                 model_training_time,acc,precision,recall,i,random_state,tuab,tueg,n_tuab,n_tueg,n_load,preload,\
-                 window_len_s,tuab_path,tueg_path,saved_data,saved_path,saved_windows_data,saved_windows_path,\
-                 load_saved_data,load_saved_windows,bandpass_filter,low_cut_hz,high_cut_hz,\
-                 standardization,factor_new,init_block_size,n_jobs,n_classes,lr,weight_decay,\
-                 batch_size,n_epochs,tmin,tmax,multiple,sec_to_cut,duration_recording_sec,max_abs_val,\
-                 sampling_freq,test_on_eval,split_way,train_size,valid_size,test_size,shuffle,\
-                 model_name,final_conv_length,window_stride_samples,relabel_dataset,relabel_label,\
-                 channels,dropout, precision_per_recording,recall_per_recording,acc_per_recording,mcc,mcc_per_recording,activation,remove_attribute])
+                    writer.writerow(['test_model','test_model','test_model','test_model', etl_time, \
+                                     model_training_time, acc, precision, recall, i, random_state, tuab, tueg, n_tuab, n_tueg, n_load, preload, \
+                                     window_len_s, tuab_path, tueg_path, saved_data, saved_path, saved_windows_data, saved_windows_path, \
+                                     load_saved_data, load_saved_windows, bandpass_filter, low_cut_hz, high_cut_hz, \
+                                     standardization, factor_new, init_block_size, n_jobs, n_classes, lr, weight_decay, \
+                                     batch_size, n_epochs, tmin, tmax, multiple, sec_to_cut, duration_recording_sec, max_abs_val, \
+                                     sampling_freq, test_on_eval, split_way, train_size, valid_size, test_size, shuffle, \
+                                     model_name, final_conv_length, window_stride_samples, relabel_dataset, relabel_label, \
+                                     channels, dropout, precision_per_recording, recall_per_recording, acc_per_recording, mcc, mcc_per_recording, deep4_activation, remove_attribute])
 
 
             if plot_result:
@@ -462,7 +503,7 @@ for (random_state,tuab,tueg,n_tuab,n_tueg,n_load,preload,window_len_s,\
                         writer1.writerow(windows_true[i*16384:(i+1)*16384])
                     writer1.writerow(windows_true[(len_true)//16384 * 16384:])
 
-                    windows_pred=np.exp(np.concatenate((np.array(clf.predict_proba(train_set)[:,1]),np.array(clf.predict_proba(valid_set)[:,1]),np.array(clf.predict_proba(test_set)[:,1])))) #Store predicted probabilities for all data
+                    windows_pred=np.exp(np.concatenate((np.array(eeg_classifier.predict_proba(train_set)[:,1]),np.array(eeg_classifier.predict_proba(valid_set)[:,1]),np.array(eeg_classifier.predict_proba(test_set)[:,1])))) #Store predicted probabilities for all data
 
                     for i in range(len_true//16384):
                         writer1.writerow(windows_pred[i*16384:(i+1)*16384])

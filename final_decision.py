@@ -170,8 +170,6 @@ for (n_repetition,length,use_his,adap_pool,use_hybrid,total,use_session_or_patie
 
         parameters = {
                       'max_depth': [5, 10, 15, 20, 25],
-
-
         }
 
         xlf = xgb.XGBClassifier(max_depth=10,
