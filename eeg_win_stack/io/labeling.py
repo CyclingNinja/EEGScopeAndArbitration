@@ -14,8 +14,8 @@ def relabel(dataset, label_path, dataset_folder):
     des_file = [Path(i).name for i in des_path]
     print("des_file", des_file)
 
-    all_labelled_TUEG_file_names = []
-    TUEG_labels = []
+    all_labelled_tueg_file_names = []
+    tueg_labels = []
 
     with open(label_path, newline="") as csvfile:
         label_catalog_reader = csv.reader(csvfile, delimiter="\t")
@@ -36,15 +36,15 @@ def relabel(dataset, label_path, dataset_folder):
 
             full_folder = Path(dataset_folder) / row[0][9:]
             this_file_names = read_all_file_names(str(full_folder), ".edf", key="time")
-            [all_labelled_TUEG_file_names.append(ff) for ff in this_file_names if (id_ in Path(ff).name and Path(ff).name in des_file)]
-            [TUEG_labels.append(label) for ff in this_file_names if (id_ in Path(ff).name and Path(ff).name in des_file)]
+            [all_labelled_tueg_file_names.append(ff) for ff in this_file_names if (id_ in Path(ff).name and Path(ff).name in des_file)]
+            [tueg_labels.append(label) for ff in this_file_names if (id_ in Path(ff).name and Path(ff).name in des_file)]
 
-    print("all_labelled_TUEG_file_names:", all_labelled_TUEG_file_names)
+    print("all_labelled_TUEG_file_names:", all_labelled_tueg_file_names)
 
     if "pathological" not in list(des):
         des["pathological"] = [2] * len(des["age"])
 
-    for i in range(len(all_labelled_TUEG_file_names)):
-        des["pathological"][des_file.index(Path(all_labelled_TUEG_file_names[i]).name)] = bool(int(TUEG_labels[i]))
+    for i in range(len(all_labelled_tueg_file_names)):
+        des["pathological"][des_file.index(Path(all_labelled_tueg_file_names[i]).name)] = bool(int(tueg_labels[i]))
 
     return des
