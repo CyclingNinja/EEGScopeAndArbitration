@@ -7,6 +7,9 @@ import numpy as np
 from braindecode.datasets import create_from_X_y
 
 from eeg_win_stack.tools.paths import get_full_filelist
+from eeg_win_stack.tools.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 def custom_crop(raw, tmin=0.0, tmax=None, include_tmax=True):
@@ -16,7 +19,7 @@ def custom_crop(raw, tmin=0.0, tmax=None, include_tmax=True):
 
 def load_brainvision_as_windows(data_folder):
     paths = get_full_filelist(data_folder, ".vhdr")
-    print(paths)
+    logger.debug("BrainVision paths: %s", paths)
 
     def channel_processing(raw):
         for c in raw.ch_names:
