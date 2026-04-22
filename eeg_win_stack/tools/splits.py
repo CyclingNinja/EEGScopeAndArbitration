@@ -8,8 +8,11 @@ import numpy as np
 from braindecode.datasets import BaseConcatDataset
 from sklearn.model_selection import train_test_split
 
-from eeg_win_stack.tools.paths import findall
 from eeg_win_stack.tools.filters import remove_same
+from eeg_win_stack.tools.paths import findall
+from eeg_win_stack.tools.logging import get_logger
+
+logger = get_logger(__name__)
 
 def split_data(windows_ds, split_way, train_size, valid_size, test_size, shuffle, random_state, remove_attribute=None):
     if split_way == "proportion":
@@ -200,10 +203,7 @@ def split_data(windows_ds, split_way, train_size, valid_size, test_size, shuffle
     if remove_attribute:
         train_set = remove_same(test_set, train_set, remove_attribute)
 
-    print("train_set:")
-    print(train_set.description)
-    print("valid_set:")
-    print(valid_set.description)
-    print("test_set:")
-    print(test_set.description)
+    logger.info("train_set: %s", train_set.description)
+    logger.info("valid_set: %s", valid_set.description)
+    logger.info("test_set: %s", test_set.description)
     return train_set, valid_set, test_set
