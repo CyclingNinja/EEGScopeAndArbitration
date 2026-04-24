@@ -9,19 +9,19 @@ description = "EEG experimentation and arbitration project"
 readme = "README.md"
 requires-python = "==3.9"
 dependencies = [
-  "numpy>=1.26,<2.0",
-  "pandas>=2.2,<3.0",
-  "scikit-learn>=1.4,<2.0",
-  "torch>=2.2,<2.4",
-  "torchvision>=0.17,<0.19",
-  "mne>=1.6,<2.0",
-  "braindecode>=1.0",
-  "einops>=0.7,<0.8",
-  "bayesian-optimization>=1.4.3,<2.0",
-  "skorch>=0.15,<0.16",
-  "matplotlib>=3.8,<4.0",
-  "xgboost>=2.0,<3.0",
-  "Pillow>=10.0,<11.0",
+  "numpy>=1.24,<2.0",
+  "pandas>=2.3,<3.0",
+  "scikit-learn>=1.2,<2.0",
+  "torch>=1.13,<2.0",
+  "torchvision>=0.14,<0.15",
+  "mne>=0.24,<1.0",
+  "braindecode>=0.6,<0.7",
+  "einops>=0.8,<1.0",
+  "bayesian-optimization>=1.2,<2.0",
+  "skorch>=0.11,<1.0",
+  "matplotlib>=3.9,<4.0",
+  "xgboost>=1.7,<2.0",
+  "Pillow>=9.3,<10.0",
 ]
 
 [tool.setuptools]
