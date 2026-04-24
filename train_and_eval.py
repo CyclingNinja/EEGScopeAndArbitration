@@ -10,7 +10,7 @@ from braindecode.preprocessing import create_fixed_length_windows
 from braindecode.models import ShallowFBCSPNet, Deep4Net,EEGNetv4,EEGNetv1,EEGResNet,TCN,SleepStagerBlanco2020,USleep,\
                                 TIDNet,get_output_shape,HybridNet, SleepStagerChambon2018
 from braindecode.preprocessing import (
-    exponential_moving_standardize, preprocess, Preprocessor)
+    exponential_moving_standardize, preprocess, Preprocessor, scale)
 from braindecode.datautil import load_concat_dataset
 from tcn_1 import TCN_1
 from hybrid_1 import HybridNet_1
@@ -63,13 +63,13 @@ with open(log_path,'a') as f:
 
 
 # Iterate over data/preproc parameters
-for (random_state, tuab, tueg, n_tuab, n_tueg, n_load, preload, window_len_s, \
+for (random_state, use_tuab, use_tueg, n_tuab, n_tueg, n_load, preload, window_len_s, \
      tuab_path, tueg_path, saved_data, saved_path, saved_windows_data, saved_windows_path, \
      load_saved_data, load_saved_windows, bandpass_filter, low_cut_hz, high_cut_hz, \
      standardization, factor_new, init_block_size, n_jobs, tmin, tmax, multiple, sec_to_cut, duration_recording_sec, max_abs_val, \
      sampling_freq, test_on_eval, split_way, train_size, valid_size, test_size, shuffle, window_stride_samples, \
      relabel_dataset, relabel_label, channels, remove_attribute, deep4_activation) in product(
-            RANDOM_STATE,TUAB,TUEG,N_TUAB,N_TUEG,N_LOAD,PRELOAD,\
+            RANDOM_STATE,USE_TUAB,USE_TUEG,N_TUAB,N_TUEG,N_LOAD,PRELOAD,\
             WINDOW_LEN_S,TUAB_PATH,TUEG_PATH,SAVED_DATA,SAVED_PATH,SAVED_WINDOWS_DATA,\
             SAVED_WINDOWS_PATH,LOAD_SAVED_DATA,LOAD_SAVED_WINDOWS,BANDPASS_FILTER,\
             LOW_CUT_HZ,HIGH_CUT_HZ,STANDARDIZATION,FACTOR_NEW,INIT_BLOCK_SIZE,N_JOBS,\
@@ -78,8 +78,8 @@ for (random_state, tuab, tueg, n_tuab, n_tueg, n_load, preload, window_len_s, \
             TRAIN_SIZE,VALID_SIZE,TEST_SIZE,SHUFFLE,WINDOW_STRIDE_SAMPLES,RELABEL_DATASET,RELABEL_LABEL,CHANNELS,REMOVE_ATTRIBUTE,DEEP4_ACTIVATION):
     print(f"""
         random_state={random_state}
-        tuab={tuab}
-        tueg={tueg}
+        tuab={use_tuab}
+        tueg={use_tueg}
         n_tuab={n_tuab}
         n_tueg={n_tueg}
         n_load={n_load}
@@ -162,16 +162,16 @@ for (random_state, tuab, tueg, n_tuab, n_tueg, n_load, preload, window_len_s, \
             )
             print(ds_tuab.description)
 
-            if tueg:  #load tueg
+            if use_tueg:  #load tueg
                 tueg_ids=list(range(n_tueg)) if n_tueg else None
                 ds_tueg=TUH(tueg_path,recording_ids=tueg_ids,target_name='pathological',
                     preload=preload)
-                if tuab:   # remove the overlap between tuab and tueg if loading both
+                if use_tuab:   # remove the overlap between tuab and tueg if loading both
                     ds_tueg = remove_tuab_from_dataset(ds_tueg, tuab_path)
 
                 print('tueg:',ds_tueg.description)
 
-            ds=BaseConcatDataset(([i for i in ds_tuab.datasets] if tuab else [])+([j for j in ds_tueg.datasets] if tueg else []))
+            ds=BaseConcatDataset(([i for i in ds_tuab.datasets] if use_tuab else []) + ([j for j in ds_tueg.datasets] if use_tueg else []))
             print('concate:',ds.description)
 
             ds=select_by_duration(ds,tmin,tmax)  #select the recording with the lenth we want
@@ -194,18 +194,20 @@ for (random_state, tuab, tueg, n_tuab, n_tueg, n_load, preload, window_len_s, \
                 Preprocessor(fn='resample', sfreq=sampling_freq),  # resampling the data
                 Preprocessor(custom_crop, tmin=sec_to_cut, tmax=duration_recording_sec+sec_to_cut, include_tmax=False,
                              apply_on_array=False),  #select desired segment of recordings
-                Preprocessor(np.multiply, factor=1e6, apply_on_array=True),  # Convert from V to uV
+                Preprocessor(scale, factor=1e6, apply_on_array=True),  # Convert from V to uV
                 Preprocessor(np.clip, a_min=-max_abs_val, a_max=max_abs_val, apply_on_array=True),  #Clip the data within the specified range
             ]
             if multiple: #scaling
-                preprocessors.append(Preprocessor(np.multiply, factor=multiple,apply_on_array=True))
+                preprocessors.append(Preprocessor(scale, factor=multiple,apply_on_array=True))
             if bandpass_filter: #filtering
                 preprocessors.append(Preprocessor('filter', l_freq=low_cut_hz, h_freq=high_cut_hz))
             if standardization:
                 preprocessors.append(Preprocessor(exponential_moving_standardize,  # Exponential moving standardization
                              factor_new=factor_new, init_block_size=init_block_size))
 
-            preprocess(ds, preprocessors, save_dir=saved_path,overwrite=False,n_jobs=n_jobs)# preprocess and save the data,  please note that here is a bug that if set n_jobs=1, there is a risk of memory explosion. So please don't set n_jobs larger than 1 when using the whole dataset.
+            # preprocess and save the data,  please note that here is a bug that if set n_jobs=1,
+            # there is a risk of memory explosion. So please don't set n_jobs larger than 1 when using the whole dataset.
+            preprocess(ds, preprocessors, save_dir=saved_path, overwrite=False, n_jobs=n_jobs)
 
 
         fs = ds.datasets[0].raw.info['sfreq']
@@ -248,7 +250,7 @@ for (random_state, tuab, tueg, n_tuab, n_tueg, n_load, preload, window_len_s, \
     for (i, n_classes, lr, weight_decay, batch_size, n_epochs, model_name, final_conv_length,dropout) \
       in product(range(N_REPETITIONS), N_CLASSES, LR, WEIGHT_DECAY, BATCH_SIZE, N_EPOCHS, MODEL_NAME, \
       FINAL_CONV_LENGTH,DROPOUT):
-        print(i, random_state, tuab, tueg, n_tuab, n_tueg, n_load, preload, window_len_s, \
+        print(i, random_state, use_tuab, use_tueg, n_tuab, n_tueg, n_load, preload, window_len_s, \
               tuab_path, tueg_path, saved_data, saved_path, saved_windows_data, saved_windows_path, \
               load_saved_data, load_saved_windows, bandpass_filter, low_cut_hz, high_cut_hz, \
               standardization, factor_new, init_block_size, n_jobs, n_classes, lr, weight_decay, \
@@ -364,11 +366,11 @@ for (random_state, tuab, tueg, n_tuab, n_tueg, n_load, preload, window_len_s, \
             global i
             if not test_model: # Choose to load a model or train a model
                 eeg_classifier.fit(train_set, y=None, epochs=n_epochs)
-                eeg_classifier.save_params('./saved_models/'+model_name+time.strftime('%Y-%m-%d_%H-%M-%S',time.localtime(time.time()))+'params.pt')
+                eeg_classifier.save_params('./data/saved_models/'+model_name+time.strftime('%Y-%m-%d_%H-%M-%S',time.localtime(time.time()))+'params.pt')
 
             else:
                 eeg_classifier.initialize()
-                eeg_classifier.load_params('./saved_models/'+params[i])
+                eeg_classifier.load_params('./data/saved_models/'+params[i])
             model_training_time = time.time() - model_training_start
 
 
@@ -427,7 +429,7 @@ for (random_state, tuab, tueg, n_tuab, n_tueg, n_load, preload, window_len_s, \
 
 
             confusion_mat = confusion_matrix(y_true, y_pred)
-            print(confusion_mat)
+            print("confusion matrix : ", confusion_mat)
 
 
             # generate various evaluation index
@@ -460,7 +462,7 @@ for (random_state, tuab, tueg, n_tuab, n_tueg, n_load, preload, window_len_s, \
 
 
                     writer.writerow([df.loc[his_len][0], df.loc[his_len][1], df.loc[his_len][2], df.loc[his_len][3], etl_time, \
-                                     model_training_time, acc, precision, recall, i, random_state, tuab, tueg, n_tuab, n_tueg, n_load, preload, \
+                                     model_training_time, acc, precision, recall, i, random_state, use_tuab, use_tueg, n_tuab, n_tueg, n_load, preload, \
                                      window_len_s, tuab_path, tueg_path, saved_data, saved_path, saved_windows_data, saved_windows_path, \
                                      load_saved_data, load_saved_windows, bandpass_filter, low_cut_hz, high_cut_hz, \
                                      standardization, factor_new, init_block_size, n_jobs, n_classes, lr, weight_decay, \
@@ -470,7 +472,7 @@ for (random_state, tuab, tueg, n_tuab, n_tueg, n_load, preload, window_len_s, \
                                      channels, dropout, precision_per_recording, recall_per_recording, acc_per_recording, mcc, mcc_per_recording, deep4_activation, remove_attribute])
                 else:
                     writer.writerow(['test_model','test_model','test_model','test_model', etl_time, \
-                                     model_training_time, acc, precision, recall, i, random_state, tuab, tueg, n_tuab, n_tueg, n_load, preload, \
+                                     model_training_time, acc, precision, recall, i, random_state, use_tuab, use_tueg, n_tuab, n_tueg, n_load, preload, \
                                      window_len_s, tuab_path, tueg_path, saved_data, saved_path, saved_windows_data, saved_windows_path, \
                                      load_saved_data, load_saved_windows, bandpass_filter, low_cut_hz, high_cut_hz, \
                                      standardization, factor_new, init_block_size, n_jobs, n_classes, lr, weight_decay, \
