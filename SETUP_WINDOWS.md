@@ -83,6 +83,12 @@ Each time you open a new terminal to work on the project:
 
 Your prompt will change to show `(.venv)` when it is active.
 
+If you see `...cannot be loaded because running scripts is disabled on this system...` try first running the following to allow scripts:
+
+```powershell
+Set-ExecutionPolicy Unrestricted -Scope CurrentUser
+```
+
 ---
 
 ## 7. Running the project
