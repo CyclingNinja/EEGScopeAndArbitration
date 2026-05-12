@@ -11,9 +11,7 @@ from braindecode.models import ShallowFBCSPNet, Deep4Net,EEGNetv4,EEGNetv1,EEGRe
 from braindecode.preprocessing import (
     exponential_moving_standardize, preprocess, Preprocessor, scale)
 from braindecode.datautil import load_concat_dataset
-from tcn_1 import TCN_1
-from hybrid_1 import HybridNet_1
-from vit import ViT
+from eeg_win_stack.models import ModelFactory
 from eeg_win_stack.io.eeg_loading import custom_crop
 from eeg_win_stack.io.labeling import relabel
 from eeg_win_stack.tools.filters import (
@@ -276,14 +274,27 @@ for (random_state,tuab,tueg,n_tuab,n_tueg,n_load,preload,window_len_s,\
                 model=USleep(in_chans=n_channels, sfreq=sampling_freq, depth=12, n_time_filters=5, complexity_factor=1.67, with_skip_connection=True, n_classes=2, input_size_s=60, time_conv_size_s=0.0703125, ensure_odd_conv_size=False, apply_softmax=False)
             elif model_name=='tidnet':
                 model=TIDNet(n_channels, n_classes, window_len_samples, s_growth=24, t_filters=32, drop_prob=dropout, pooling=15, temp_layers=2, spat_layers=2, temp_span=0.05, bottleneck=3, summary=- 1)
-            elif model_name=='tcn_1':
-                model=TCN_1(n_channels, n_classes, n_blocks=tcn_n_blocks, n_filters=tcn_n_filters, kernel_size=tcn_kernel_size, drop_prob=dropout, add_log_softmax=tcn_add_log_softmax,input_window_samples=window_len_samples,last_layer_type=tcn_last_layer_type)
             elif model_name=='hybridnet':
                 model=HybridNet(n_channels,n_classes,window_len_samples)
-            elif model_name == 'hybridnet_1':
-                model = HybridNet_1(n_channels, n_classes, window_len_samples)
-            elif model_name == 'vit':
-                model = ViT(num_channels=n_channels,input_window_samples = window_len_samples,patch_size = vit_patch_size,num_classes = n_classes,dim = vit_dim,depth = vit_depth,heads = vit_heads,mlp_dim = vit_mlp_dim,dropout = dropout,emb_dropout = vit_emb_dropout)
+            elif model_name in ModelFactory.available():
+                model = ModelFactory.create(
+                    model_name,
+                    n_channels=n_channels,
+                    n_classes=n_classes,
+                    input_window_samples=window_len_samples,
+                    n_blocks=tcn_n_blocks,
+                    n_filters=tcn_n_filters,
+                    kernel_size=tcn_kernel_size,
+                    drop_prob=dropout,
+                    add_log_softmax=tcn_add_log_softmax,
+                    last_layer_type=tcn_last_layer_type,
+                    patch_size=vit_patch_size,
+                    dim=vit_dim,
+                    depth=vit_depth,
+                    heads=vit_heads,
+                    mlp_dim=vit_mlp_dim,
+                    emb_dropout=vit_emb_dropout,
+                )
 
 
 
