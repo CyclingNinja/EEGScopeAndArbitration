@@ -28,11 +28,8 @@ dependencies = [
 py-modules = [
   "util",
   "final_decision",
-  "hybrid_1",
   "results_boxplot",
-  "tcn_1",
   "train_and_eval",
-  "vit",
 ]
 
 [tool.setuptools.packages.find]
