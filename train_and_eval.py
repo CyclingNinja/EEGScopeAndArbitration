@@ -6,8 +6,7 @@ from bayes_opt import SequentialDomainReductionTransformer
 import torch
 from braindecode.datasets import TUHAbnormal,TUH,BaseConcatDataset
 from braindecode.preprocessing import create_fixed_length_windows
-from braindecode.models import ShallowFBCSPNet, Deep4Net,EEGNetv4,EEGNetv1,EEGResNet,TCN,SleepStagerBlanco2020,USleep,\
-                                TIDNet,get_output_shape,HybridNet, SleepStagerChambon2018
+from braindecode.models import get_output_shape
 from braindecode.preprocessing import (
     exponential_moving_standardize, preprocess, Preprocessor, scale)
 from braindecode.datautil import load_concat_dataset
@@ -238,62 +237,54 @@ for (random_state,tuab,tueg,n_tuab,n_tueg,n_load,preload,window_len_s,\
                 nonlin=gelu
 
             #select the model(first-stage)
-            if model_name=='deep4':
-                model = Deep4Net(
-                            n_channels, n_classes, input_window_samples=window_len_samples,
-                            final_conv_length=final_conv_length, n_filters_time=deep4_n_filters_time, n_filters_spat=deep4_n_filters_spat,
-                            filter_time_length=deep4_filter_time_length, pool_time_length=deep4_pool_time_length, pool_time_stride=deep4_pool_time_stride,
-                            n_filters_2=deep4_n_filters_2, filter_length_2=deep4_filter_length_2, n_filters_3=deep4_n_filters_3,
-                            filter_length_3=deep4_filter_length_3, n_filters_4=deep4_n_filters_4, filter_length_4=deep4_filter_length_4,
-                            first_pool_mode=deep4_first_pool_mode, later_pool_mode=deep4_later_pool_mode, drop_prob=dropout,
-                            double_time_convs=False, split_first_layer=True, batch_norm=True,
-                            batch_norm_alpha=0.1, stride_before_pool=False,first_nonlin=nonlin,later_nonlin=nonlin)
-
-            elif model_name=='shallow_smac':
-                model = ShallowFBCSPNet(
-                    n_channels, n_classes, input_window_samples=window_len_samples,
-                    n_filters_time=shallow_n_filters_time, filter_time_length=shallow_filter_time_length, n_filters_spat=shallow_n_filters_spat,
-                    pool_time_length=shallow_pool_time_length, pool_time_stride=shallow_pool_time_stride, final_conv_length=final_conv_length,
-                    split_first_layer=shallow_split_first_layer, batch_norm=shallow_batch_norm, batch_norm_alpha=shallow_batch_norm_alpha,
-                    drop_prob=dropout)
-            elif model_name=='eegnetv4':
-                model=EEGNetv4(n_channels, n_classes, input_window_samples=window_len_samples, final_conv_length=final_conv_length,
-                                            pool_mode='mean', F1=8, D=2, F2=16, kernel_length=64, third_kernel_size=(8, 4),
-                                            drop_prob=dropout)
-            elif model_name=='eegnetv1':
-                model=EEGNetv1(n_channels, n_classes, input_window_samples=window_len_samples, final_conv_length=final_conv_length, pool_mode='max', second_kernel_size=(2, 32), third_kernel_size=(8, 4), drop_prob=dropout)
-            elif model_name=='eegresnet':
-                model=EEGResNet(n_channels, n_classes, window_len_samples, final_conv_length, n_first_filters=10, n_layers_per_block=2, first_filter_length=3, split_first_layer=True, batch_norm_alpha=0.1, batch_norm_epsilon=0.0001)
-            elif model_name=='tcn':
-                model=TCN(n_channels, n_classes, n_blocks=8, n_filters=2, kernel_size=12, drop_prob=dropout, add_log_softmax=False)
-            elif model_name=='sleep2020':
-                model=SleepStagerBlanco2020(n_channels, sampling_freq, n_conv_chans=20, input_size_s=60, n_classes=2, n_groups=3, max_pool_size=2, dropout=dropout, apply_batch_norm=False, return_feats=False)
-            elif model_name=='sleep2018':
-                model=SleepStagerChambon2018(n_channels, sampling_freq, n_conv_chs=8, time_conv_size_s=0.5, max_pool_size_s=0.125, pad_size_s=0.25, input_size_s=60, n_classes=n_classes, dropout=dropout, apply_batch_norm=False, return_feats=False)
-            elif model_name=='usleep':
-                model=USleep(in_chans=n_channels, sfreq=sampling_freq, depth=12, n_time_filters=5, complexity_factor=1.67, with_skip_connection=True, n_classes=2, input_size_s=60, time_conv_size_s=0.0703125, ensure_odd_conv_size=False, apply_softmax=False)
-            elif model_name=='tidnet':
-                model=TIDNet(n_channels, n_classes, window_len_samples, s_growth=24, t_filters=32, drop_prob=dropout, pooling=15, temp_layers=2, spat_layers=2, temp_span=0.05, bottleneck=3, summary=- 1)
-            elif model_name=='hybridnet':
-                model=HybridNet(n_channels,n_classes,window_len_samples)
-            elif model_name in ModelFactory.available():
+            if model_name in ModelFactory.available():
                 model = ModelFactory.create(
                     model_name,
                     n_channels=n_channels,
                     n_classes=n_classes,
                     input_window_samples=window_len_samples,
+                    drop_prob=dropout,
+                    final_conv_length=final_conv_length,
+                    # deep4
+                    deep4_n_filters_time=deep4_n_filters_time,
+                    deep4_n_filters_spat=deep4_n_filters_spat,
+                    deep4_filter_time_length=deep4_filter_time_length,
+                    deep4_pool_time_length=deep4_pool_time_length,
+                    deep4_pool_time_stride=deep4_pool_time_stride,
+                    deep4_n_filters_2=deep4_n_filters_2,
+                    deep4_filter_length_2=deep4_filter_length_2,
+                    deep4_n_filters_3=deep4_n_filters_3,
+                    deep4_filter_length_3=deep4_filter_length_3,
+                    deep4_n_filters_4=deep4_n_filters_4,
+                    deep4_filter_length_4=deep4_filter_length_4,
+                    deep4_first_pool_mode=deep4_first_pool_mode,
+                    deep4_later_pool_mode=deep4_later_pool_mode,
+                    first_nonlin=nonlin,
+                    later_nonlin=nonlin,
+                    # shallow_smac
+                    shallow_n_filters_time=shallow_n_filters_time,
+                    shallow_filter_time_length=shallow_filter_time_length,
+                    shallow_n_filters_spat=shallow_n_filters_spat,
+                    shallow_pool_time_length=shallow_pool_time_length,
+                    shallow_pool_time_stride=shallow_pool_time_stride,
+                    shallow_split_first_layer=shallow_split_first_layer,
+                    shallow_batch_norm=shallow_batch_norm,
+                    shallow_batch_norm_alpha=shallow_batch_norm_alpha,
+                    # tcn_1
                     n_blocks=tcn_n_blocks,
                     n_filters=tcn_n_filters,
                     kernel_size=tcn_kernel_size,
-                    drop_prob=dropout,
                     add_log_softmax=tcn_add_log_softmax,
                     last_layer_type=tcn_last_layer_type,
+                    # vit
                     patch_size=vit_patch_size,
                     dim=vit_dim,
                     depth=vit_depth,
                     heads=vit_heads,
                     mlp_dim=vit_mlp_dim,
                     emb_dropout=vit_emb_dropout,
+                    # sleep2020 / sleep2018 / usleep
+                    sampling_freq=sampling_freq,
                 )
 
 
