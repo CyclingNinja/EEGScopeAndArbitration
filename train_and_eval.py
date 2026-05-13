@@ -4,24 +4,12 @@ import pandas as pd
 from bayes_opt import BayesianOptimization
 from bayes_opt import SequentialDomainReductionTransformer
 import torch
-from braindecode.datasets import TUHAbnormal,TUH,BaseConcatDataset
-from braindecode.preprocessing import create_fixed_length_windows
 from braindecode.models import ShallowFBCSPNet, Deep4Net,EEGNetv4,EEGNetv1,EEGResNet,TCN,SleepStagerBlanco2020,USleep,\
                                 TIDNet,get_output_shape,HybridNet, SleepStagerChambon2018
-from braindecode.preprocessing import (
-    exponential_moving_standardize, preprocess, Preprocessor, scale)
-from braindecode.datautil import load_concat_dataset
 from tcn_1 import TCN_1
 from hybrid_1 import HybridNet_1
 from vit import ViT
-from eeg_win_stack.io.eeg_loading import custom_crop
-from eeg_win_stack.io.labeling import relabel
-from eeg_win_stack.tools.filters import (
-    remove_tuab_from_dataset,
-    select_by_duration,
-    select_by_channel,
-    select_labeled,
-)
+from eeg_win_stack.io.dataset_builder import DatasetBuilder
 from eeg_win_stack.tools.metrics import MCC, con_mat, find_all_zero, weight_function
 from eeg_win_stack.tools.paths import findall
 from eeg_win_stack.tools.splits import split_data
@@ -104,99 +92,42 @@ for (random_state,tuab,tueg,n_tuab,n_tueg,n_load,preload,window_len_s,\
     data_loading_start = time.time()
 
 
-    window_len_samples = window_len_s*sampling_freq #Count how many data points are in a window
-    if load_saved_windows:   # load preprocessed windows
-        load_ids = list(range(n_load)) if n_load else None
-        windows_ds = load_concat_dataset(
-            path=saved_windows_path,
-            preload=False,
-            ids_to_load=load_ids,
-            target_name='pathological',
-            n_jobs=1,
-        )
-    else:
-        if load_saved_data:  # load preprocessed recordings
-            load_ids=list(range(n_load)) if n_load else None
-            ds=load_concat_dataset(
-            path=saved_path,
-            preload=preload,
-            ids_to_load=load_ids,
-            target_name='pathological',
-        )
-        else:
-            tuab_ids = list(range(n_tuab)) if n_tuab else None
-            ds_tuab= TUHAbnormal(     #load tuab
-                tuab_path, recording_ids=tuab_ids,target_name='pathological',
-                preload=preload)
-            print(ds_tuab.description)
-
-            if tueg:  #load tueg
-                tueg_ids=list(range(n_tueg)) if n_tueg else None
-                ds_tueg=TUH(tueg_path,recording_ids=tueg_ids,target_name='pathological',
-                    preload=preload)
-                if tuab:   # remove the overlap between tuab and tueg if loading both
-                    ds_tueg = remove_tuab_from_dataset(ds_tueg, tuab_path)
-
-                print('tueg:',ds_tueg.description)
-
-            ds=BaseConcatDataset(([i for i in ds_tuab.datasets] if tuab else [])+([j for j in ds_tueg.datasets] if tueg else []))
-            print('concate:',ds.description)
-
-            ds=select_by_duration(ds,tmin,tmax)  #select the recording with the lenth we want
-            print('select_duration:',ds.description)
-
-            for i in range(len(relabel_label)):  #label the data without labels
-                ds.set_description(relabel(ds,relabel_label[i],relabel_dataset[i]),overwrite=True)
-            print('labeled:',ds.description)
-
-            ds=select_labeled(ds)   # removed unlabeled data
-            print('select_labeled:',ds.description)
-
-            ds=select_by_channel(ds,channels)  # removed the data that do not have all the channels we want
-            print('select_channel:',ds.description)
-
-
-            preprocessors = [  #preprocessing list
-                Preprocessor('pick_types', eeg=True, meg=False, stim=False),# Keep EEG sensors
-                Preprocessor('pick_channels',ch_names = channels,ordered=True),  #select the channels we want
-                Preprocessor(fn='resample', sfreq=sampling_freq),  # resampling the data
-                Preprocessor(custom_crop, tmin=sec_to_cut, tmax=duration_recording_sec+sec_to_cut, include_tmax=False,
-                             apply_on_array=False),  #select desired segment of recordings
-                Preprocessor(scale, factor=1e6, apply_on_array=True),  # Convert from V to uV
-                Preprocessor(np.clip, a_min=-max_abs_val, a_max=max_abs_val, apply_on_array=True),  #Clip the data within the specified range
-            ]
-            if multiple: #scaling
-                preprocessors.append(Preprocessor(scale, factor=multiple,apply_on_array=True))
-            if bandpass_filter: #filtering
-                preprocessors.append(Preprocessor('filter', l_freq=low_cut_hz, h_freq=high_cut_hz))
-            if standardization:
-                preprocessors.append(Preprocessor(exponential_moving_standardize,  # Exponential moving standardization
-                             factor_new=factor_new, init_block_size=init_block_size))
-
-            preprocess(ds, preprocessors, save_dir=saved_path,overwrite=False,n_jobs=n_jobs)# preprocess and save the data,  please note that here is a bug that if set n_jobs=1, there is a risk of memory explosion. So please don't set n_jobs larger than 1 when using the whole dataset.
-
-
-        fs = ds.datasets[0].raw.info['sfreq']
-        window_len_samples = int(fs * window_len_s)  # calculate window lengths
-        if not window_stride_samples:  # set the stride between windows
-            window_stride_samples = window_len_samples
-
-        # window_stride_samples = int(fs * window_len_s)
-        windows_ds = create_fixed_length_windows(  # windowing the data
-            ds, start_offset_samples=0, stop_offset_samples=None,
-            window_size_samples=window_len_samples,
-            window_stride_samples=window_stride_samples, drop_last_window=True,
-            preload=preload, drop_bad_windows=True)
-
-        # Drop bad epochs
-        # XXX: This could be parallelized.
-        # XXX: Also, this could be implemented in the Dataset object itself.
-        for ds in windows_ds.datasets:
-            ds.windows.drop_bad()
-            assert ds.windows.preload == preload
-
-        if saved_windows_data:
-            windows_ds.save(saved_windows_path,True)
+    windows_ds = DatasetBuilder(
+        load_saved_windows=load_saved_windows,
+        saved_windows_path=saved_windows_path,
+        save_windows=saved_windows_data,
+        load_saved_data=load_saved_data,
+        saved_data_path=saved_path,
+        save_preprocessed=saved_data,
+        use_tuab=tuab,
+        use_tueg=tueg,
+        tuab_path=tuab_path,
+        tueg_path=tueg_path,
+        n_tuab=n_tuab,
+        n_tueg=n_tueg,
+        tmin=tmin,
+        tmax=tmax,
+        channels=channels,
+        relabel_label=relabel_label,
+        relabel_dataset=relabel_dataset,
+        sampling_freq=sampling_freq,
+        sec_to_cut=sec_to_cut,
+        duration_recording_sec=duration_recording_sec,
+        max_abs_val=max_abs_val,
+        multiple=multiple,
+        bandpass_filter=bandpass_filter,
+        low_cut_hz=low_cut_hz,
+        high_cut_hz=high_cut_hz,
+        standardization=standardization,
+        factor_new=factor_new,
+        init_block_size=init_block_size,
+        window_len_s=window_len_s,
+        window_stride_samples=window_stride_samples,
+        n_load=n_load,
+        preload=preload,
+        n_jobs=n_jobs,
+    ).build()
+    window_len_samples = windows_ds[0][0].shape[1]
 
     # print(windows_ds.description)
 

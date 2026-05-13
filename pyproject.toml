@@ -7,7 +7,7 @@ name = "eeg-win-stack"
 version = "0.1.0"
 description = "EEG experimentation and arbitration project"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.9"
 dependencies = [
   "numpy>=1.26,<2.0",
   "pandas>=2.2,<3.0",
@@ -38,3 +38,8 @@ py-modules = [
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["eeg_win_stack*"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.2",
+]
