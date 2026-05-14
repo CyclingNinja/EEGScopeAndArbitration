@@ -207,7 +207,7 @@ for (random_state, use_tuab, use_tueg, n_tuab, n_tueg, n_load, preload, window_l
 
             # preprocess and save the data,  please note that here is a bug that if set n_jobs=1,
             # there is a risk of memory explosion. So please don't set n_jobs larger than 1 when using the whole dataset.
-            preprocess(ds, preprocessors, save_dir=saved_path, overwrite=False, n_jobs=n_jobs)
+            preprocess(ds, preprocessors, save_dir=saved_path if saved_data else None, overwrite=False, n_jobs=n_jobs)
 
 
         fs = ds.datasets[0].raw.info['sfreq']
@@ -355,6 +355,7 @@ for (random_state, use_tuab, use_tueg, n_tuab, n_tueg, n_load, preload, window_l
                 batch_size=batch_size,
                 callbacks=callbacks,
                 device=device,
+                classes=list(range(n_classes)),
             )
 
 
@@ -428,7 +429,7 @@ for (random_state, use_tuab, use_tueg, n_tuab, n_tueg, n_load, preload, window_l
             print(confusion_mat_per_recording_proba)
 
 
-            confusion_mat = confusion_matrix(y_true, y_pred)
+            confusion_mat = confusion_matrix(y_true, y_pred, labels=list(range(n_classes)))
             print("confusion matrix : ", confusion_mat)
 
 
@@ -523,7 +524,7 @@ for (random_state, use_tuab, use_tueg, n_tuab, n_tueg, n_load, preload, window_l
                     patients = []
                     sessions = []
                     for i in range(len(paths)):
-                        splits = paths[i][0].split('\\')
+                        splits = paths[i][0].replace('\\', '/').split('/')
                         patients.append(splits[-3])
                         sessions.append(splits[-2])
                     print('patients', patients)
