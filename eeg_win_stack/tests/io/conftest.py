@@ -31,9 +31,9 @@ def mock_concat_dataset():
     """Mock BaseConcatDataset suitable as input to DatasetBuilder._window (sfreq=100)."""
     sub = MagicMock()
     sub.raw.info = {"sfreq": 100.0}
-    ds = MagicMock()
-    ds.datasets = [sub]
-    return ds
+    recordings = MagicMock()
+    recordings.datasets = [sub]
+    return recordings
 
 
 @pytest.fixture
