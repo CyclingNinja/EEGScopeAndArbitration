@@ -103,11 +103,11 @@ class DatasetBuilder:
             return self._load_saved_windows()
 
         if self.load_saved_data:
-            ds = self._load_saved_recordings()
+            recordings = self._load_saved_recordings()
         else:
-            ds = self._load_and_preprocess_raw()
+            recordings = self._load_and_preprocess_raw()
 
-        return self._window(ds)
+        return self._window(recordings)
 
     # ------------------------------------------------------------------
     # Private: load paths
@@ -143,9 +143,9 @@ class DatasetBuilder:
             preload=self.preload,
             n_jobs=self.n_jobs,
         )
-        ds = loader.load()
-        ds = loader.filter(
-            ds,
+        recordings = loader.load()
+        recordings = loader.filter(
+            recordings,
             tmin=self.tmin,
             tmax=self.tmax,
             channels=self.channels,
@@ -153,8 +153,8 @@ class DatasetBuilder:
             relabel_dataset=self.relabel_dataset,
         )
         save_dir = self.saved_data_path if self.save_preprocessed else None
-        ds = loader.preprocess_recordings(
-            ds,
+        recordings = loader.preprocess_recordings(
+            recordings,
             sampling_freq=self.sampling_freq,
             sec_to_cut=self.sec_to_cut,
             duration_recording_sec=self.duration_recording_sec,
@@ -169,19 +169,19 @@ class DatasetBuilder:
             init_block_size=self.init_block_size,
             save_dir=save_dir,
         )
-        return ds
+        return recordings
 
     # ------------------------------------------------------------------
     # Private: windowing
     # ------------------------------------------------------------------
 
-    def _window(self, ds: BaseConcatDataset) -> BaseConcatDataset:
-        fs = ds.datasets[0].raw.info['sfreq']
+    def _window(self, recordings: BaseConcatDataset) -> BaseConcatDataset:
+        fs = recordings.datasets[0].raw.info['sfreq']
         window_len_samples = int(fs * self.window_len_s)
         stride = self.window_stride_samples or window_len_samples
 
         windows_ds = create_fixed_length_windows(
-            ds,
+            recordings,
             start_offset_samples=0,
             stop_offset_samples=None,
             window_size_samples=window_len_samples,
