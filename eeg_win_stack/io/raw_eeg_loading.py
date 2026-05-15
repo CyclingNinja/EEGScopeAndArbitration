@@ -79,7 +79,7 @@ class RawEEGLoader:
 
     def filter(
         self,
-        ds: BaseConcatDataset,
+        recordings: BaseConcatDataset,
         tmin: float,
         tmax: float,
         channels: list[str],
@@ -87,21 +87,21 @@ class RawEEGLoader:
         relabel_dataset: list | None = None,
     ) -> BaseConcatDataset:
         """Apply duration, label, and channel filters to a dataset."""
-        ds = select_by_duration(ds, tmin, tmax)
+        recordings = select_by_duration(recordings, tmin, tmax)
 
         if relabel_label:
             for label_path, dataset_folder in zip(relabel_label, relabel_dataset):
-                ds.set_description(
-                    relabel(ds, label_path, dataset_folder), overwrite=True
+                recordings.set_description(
+                    relabel(recordings, label_path, dataset_folder), overwrite=True
                 )
 
-        ds = select_labeled(ds)
-        ds = select_by_channel(ds, channels)
-        return ds
+        recordings = select_labeled(recordings)
+        recordings = select_by_channel(recordings, channels)
+        return recordings
 
     def preprocess_recordings(
         self,
-        ds: BaseConcatDataset,
+        recordings: BaseConcatDataset,
         sampling_freq: float,
         sec_to_cut: float,
         duration_recording_sec: float,
@@ -151,15 +151,15 @@ class RawEEGLoader:
                 )
             )
 
-        preprocess(ds, preprocessors, save_dir=save_dir, overwrite=False, n_jobs=self.n_jobs)
-        return ds
+        preprocess(recordings, preprocessors, save_dir=save_dir, overwrite=False, n_jobs=self.n_jobs)
+        return recordings
 
-    def save_as_brainvision(self, ds: BaseConcatDataset, output_dir: str) -> None:
+    def save_as_brainvision(self, recordings: BaseConcatDataset, output_dir: str) -> None:
         """Export each recording in the dataset to BrainVision (.vhdr) format."""
         output_path = Path(output_dir)
         output_path.mkdir(parents=True, exist_ok=True)
 
-        for i, dataset in enumerate(ds.datasets):
+        for i, dataset in enumerate(recordings.datasets):
             raw = dataset.raw
             fname = output_path / f"recording_{i:04d}.vhdr"
             mne.export.export_raw(str(fname), raw, fmt='brainvision', overwrite=True)
