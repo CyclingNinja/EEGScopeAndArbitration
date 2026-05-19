@@ -1,5 +1,6 @@
 from itertools import product
 import datetime as dt
+from pathlib import Path
 import time
 import pandas as pd
 import numpy as np
@@ -368,11 +369,13 @@ for (random_state, use_tuab, use_tueg, n_tuab, n_tueg, n_load, preload, window_l
             global i
             if not load_pretrained_model: # Choose to load a model or train a model
                 eeg_classifier.fit(train_set, y=None, epochs=n_epochs)
-                eeg_classifier.save_params(f"{saved_models_path}{model_name}{dt.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}params.pt")
+                timestamp = dt.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+                eeg_classifier.save_params(Path(saved_models_path) / f"{model_name}{timestamp}params.pt")
 
             else:
+                print("Loading trained models")
                 eeg_classifier.initialize()
-                eeg_classifier.load_params(f"{saved_models_path}{params[i]}")
+                eeg_classifier.load_params(Path(saved_models_path) / params[i])
             model_training_time = time.time() - model_training_start
 
 
