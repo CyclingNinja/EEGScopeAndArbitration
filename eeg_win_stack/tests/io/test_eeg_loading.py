@@ -11,7 +11,8 @@ from eeg_win_stack.io.visual_eeg_loading import EEGLoader
 
 @pytest.fixture
 def loader():
-    return EEGLoader(data_folder="data/")
+    # window_len_s=5.0 fits within the 10s synthetic_raw fixture (sfreq=256 → 1280 samples)
+    return EEGLoader(data_folder="data/", window_len_s=5.0)
 
 
 class TestCustomCrop:
