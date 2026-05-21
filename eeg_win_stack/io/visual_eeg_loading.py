@@ -10,8 +10,15 @@ from eeg_win_stack.tools.paths import get_full_filelist
 
 
 class EEGLoader:
-    def __init__(self, data_folder):
+    def __init__(
+        self,
+        data_folder,
+        window_len_s: float = 60.0,
+        window_stride_samples: int | None = None,
+    ):
         self.data_folder = data_folder
+        self.window_len_s = window_len_s
+        self.window_stride_samples = window_stride_samples
 
     def _custom_crop(self, raw, tmin=0.0, tmax=None, include_tmax=True):
         tmax = min((raw.n_times - 1) / raw.info["sfreq"], tmax)
@@ -53,13 +60,16 @@ class EEGLoader:
             "EEG T6-REF", "EEG FZ-REF", "EEG PZ-REF", "EEG CZ-REF",
         ]
 
+        window_size_samples = int(sfreq * self.window_len_s)
+        stride = self.window_stride_samples or window_size_samples
+
         windows_dataset = create_from_X_y(
             X,
             y,
             drop_last_window=False,
             sfreq=sfreq,
             ch_names=channels,
-            window_stride_samples=6000,
-            window_size_samples=6000,
+            window_stride_samples=stride,
+            window_size_samples=window_size_samples,
         )
         return windows_dataset
