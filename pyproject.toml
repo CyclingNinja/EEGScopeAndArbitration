@@ -35,3 +35,8 @@ py-modules = [
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["eeg_win_stack*"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.2",
+]
