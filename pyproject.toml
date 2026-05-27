@@ -36,7 +36,16 @@ py-modules = [
 where = ["."]
 include = ["eeg_win_stack*"]
 
+[tool.pytest.ini_options]
+filterwarnings = [
+  # matplotlib (transitively imported via braindecode/skorch) calls pyparsing
+  # APIs deprecated in pyparsing 3.x. Fixed upstream in matplotlib 3.10, which
+  # requires Python >=3.10; this env is 3.9. Remove after the Python migration.
+  "ignore::pyparsing.exceptions.PyparsingDeprecationWarning",
+]
+
 [dependency-groups]
 dev = [
     "pytest>=8.4.2",
+    "ruff>=0.15.14",
 ]
