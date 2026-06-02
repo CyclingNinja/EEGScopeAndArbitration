@@ -34,6 +34,7 @@ sampling_freq = 100
 
 [windowing]
 window_len_s = 60
+multiple = 0
 tmin = 300
 sec_to_cut = 60
 duration_recording_sec = 1200
