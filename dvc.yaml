@@ -1,0 +1,40 @@
+stages:
+  preprocess:
+    cmd: python -m eeg_win_stack.pipeline.preprocess
+    params:
+      - eeg_win_stack/config/params.toml:
+          - data
+          - preprocessing
+          - windowing
+          - run
+    outs:
+      - data/saved_windows:
+          cache: true
+
+  train:
+    cmd: python -m eeg_win_stack.pipeline.train
+    deps:
+      - data/saved_windows
+    params:
+      - eeg_win_stack/config/params.toml:
+          - split
+          - training
+          - model
+          - run
+    outs:
+      - data/saved_models:
+          cache: true
+
+  evaluate:
+    cmd: python -m eeg_win_stack.pipeline.evaluate
+    deps:
+      - data/saved_windows
+      - data/saved_models
+    params:
+      - eeg_win_stack/config/params.toml:
+          - split
+          - model
+          - run
+    metrics:
+      - metrics.json:
+          cache: false
