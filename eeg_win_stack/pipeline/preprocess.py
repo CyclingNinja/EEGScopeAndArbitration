@@ -16,8 +16,8 @@ def main():
     mne.set_log_level(run_cfg["mne_log_level"])
 
     DatasetBuilder(
-        use_tuab=data_cfg["tuab"],
-        use_tueg=data_cfg["tueg"],
+        use_tuab=data_cfg["use_tuab"],
+        use_tueg=data_cfg["use_tueg"],
         tuab_path=data_cfg["tuab_path"],
         tueg_path=data_cfg["tueg_path"],
         n_tuab=data_cfg["n_tuab"],

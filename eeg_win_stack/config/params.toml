@@ -5,8 +5,8 @@ random_state = 87
 n_jobs = 8
 
 [data]
-tuab = true
-tueg = true
+use_tuab = true
+use_tueg = true
 n_tuab = 2993
 n_tueg = 50
 n_load = 100
