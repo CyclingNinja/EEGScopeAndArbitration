@@ -67,6 +67,7 @@ def main():
         n_epochs=training_cfg["n_epochs"],
         early_stopping=training_cfg["earlystopping"],
         es_threshold=training_cfg["es_threshold"],
+        es_patience=training_cfg["es_patience"],
         test_on_eval=training_cfg["test_on_eval"],
         checkpoint_dir=training_cfg["checkpoint_dir"],
     )
