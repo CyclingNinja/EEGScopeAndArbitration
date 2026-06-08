@@ -10,10 +10,7 @@ from braindecode import EEGClassifier
 from skorch.callbacks import Checkpoint, EarlyStopping, LRScheduler
 from skorch.helper import predefined_split
 
-import train_and_eval
 from eeg_win_stack.tools.metrics import weight_function
-
-import train_and_eval_config as train_config
 
 
 @dataclass
@@ -51,16 +48,16 @@ class TrainingConfig:
         callback. Empty string uses skorch's default behaviour.
     """
 
-    learning_rate: float = train_config.learning_rate
-    weight_decay: float = train_and_eval.weight_decay
-    batch_size: int = train_config.batch_size
-    n_epochs: int = train_and_eval.n_epochs
+    learning_rate: float = 0.001
+    weight_decay: float = 0.0005
+    batch_size: int = 1
+    n_epochs: int = 30
     device: str | None = None
-    early_stopping: bool = train_config.earlystopping
-    es_threshold: float = train_config.es_threshold
-    es_patience: int | None = train_config.es_patience
-    test_on_eval: bool = train_config.test_on_eval
-    checkpoint_dir: str = train_config.checkpoint_dir
+    early_stopping: bool = True
+    es_threshold: float = 0.001
+    es_patience: int | None = None
+    test_on_eval: bool = True
+    checkpoint_dir: str = ""
 
     def resolve_device(self) -> str:
         """Return the device to train on, autodetecting CUDA when unset.
