@@ -1,4 +1,6 @@
 import time
+import csv
+import mne
 import pandas as pd
 from bayes_opt import BayesianOptimization
 from bayes_opt import SequentialDomainReductionTransformer
@@ -11,7 +13,7 @@ from braindecode.preprocessing import (
     exponential_moving_standardize, preprocess, Preprocessor, scale)
 from braindecode.datautil import load_concat_dataset
 from eeg_win_stack.models import ModelFactory
-from eeg_win_stack.io.eeg_loading import custom_crop
+from eeg_win_stack.io.raw_eeg_loading import custom_crop
 from eeg_win_stack.io.labeling import relabel
 from eeg_win_stack.tools.filters import (
     remove_tuab_from_dataset,
@@ -20,9 +22,9 @@ from eeg_win_stack.tools.filters import (
     select_labeled,
 )
 from eeg_win_stack.io.dataset_builder import DatasetBuilder
-from eeg_win_stack.tools.metrics import MCC, con_mat, find_all_zero, weight_function
+from eeg_win_stack.tools.metrics import matthews_correlation_coefficient, con_mat, find_all_zero, weight_function
 from eeg_win_stack.tools.paths import findall
-from eeg_win_stack.tools.splits import split_data
+from eeg_win_stack.tools.dataset_splitting import DatasetSplitter
 from eeg_win_stack.config import load
 
 from torch.nn.functional import elu,relu,gelu
@@ -129,12 +131,14 @@ windows_ds = DatasetBuilder(
 window_len_samples = windows_ds[0][0].shape[1]
 
 # Split the data:
-train_set, valid_set, test_set = split_data(
+splitter = DatasetSplitter(
     windows_ds,
-    split["split_way"], split["train_size"], split["valid_size"], split["test_size"],
-    split["shuffle"], run["random_state"],
+    split["train_size"], split["valid_size"], split["test_size"],
+    run["random_state"],
+    shuffle=split["shuffle"],
     remove_attribute=None,
 )
+train_set, valid_set, test_set = splitter.split_data(split["split_way"])
 print('len_valid_train', len(train_set.description.loc[:, ['path']]) + len(valid_set.description.loc[:, ['path']]))
 print('len_test', len(test_set.description.loc[:, ['path']]))
 etl_time = time.time() - data_loading_start
@@ -165,11 +169,13 @@ for i in range(run["n_repetitions"]):
     )
     if split["shuffle"] and i > 0:
         # Re-split the data to ensure each repetition uses a different split:
-        train_set, valid_set, test_set = split_data(
+        splitter = DatasetSplitter(
             windows_ds,
-            split["split_way"], split["train_size"], split["valid_size"], split["test_size"],
-            split["shuffle"], run["random_state"] + i,
+            split["train_size"], split["valid_size"], split["test_size"],
+            run["random_state"] + i,
+            shuffle=split["shuffle"],
         )
+        train_set, valid_set, test_set = splitter.split_data(split["split_way"])
 
     mne.set_log_level(run["mne_log_level"])
     def exp(dropout=0.2):

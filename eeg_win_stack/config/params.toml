@@ -67,8 +67,8 @@ es_threshold = 0.001
 checkpoint_dir = ""
 
 [output]
-log_path = "./data/target/result.csv"
-saved_models_path = "./data/saved_models/"
+log_path = "./target/result.csv"
+saved_models_path = "./target/saved_models/"
 plot_result = false
 train_whole_dataset_again = true
 load_pretrained_model = false
