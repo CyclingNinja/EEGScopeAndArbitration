@@ -1,4 +1,6 @@
 import time
+import csv
+import mne
 import pandas as pd
 from bayes_opt import BayesianOptimization
 from bayes_opt import SequentialDomainReductionTransformer
@@ -11,7 +13,7 @@ from braindecode.preprocessing import (
     exponential_moving_standardize, preprocess, Preprocessor, scale)
 from braindecode.datautil import load_concat_dataset
 from eeg_win_stack.models import ModelFactory
-from eeg_win_stack.io.eeg_loading import custom_crop
+from eeg_win_stack.io.raw_eeg_loading import custom_crop
 from eeg_win_stack.io.labeling import relabel
 from eeg_win_stack.tools.filters import (
     remove_tuab_from_dataset,
@@ -20,7 +22,7 @@ from eeg_win_stack.tools.filters import (
     select_labeled,
 )
 from eeg_win_stack.io.dataset_builder import DatasetBuilder
-from eeg_win_stack.tools.metrics import MCC, con_mat, find_all_zero, weight_function
+from eeg_win_stack.tools.metrics import matthews_correlation_coefficient, con_mat, find_all_zero, weight_function
 from eeg_win_stack.tools.paths import findall
 from eeg_win_stack.tools.splits import split_data
 from eeg_win_stack.config import load
