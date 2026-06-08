@@ -11,7 +11,7 @@ from braindecode.datautil import load_concat_dataset
 from eeg_win_stack.config import load
 from eeg_win_stack.evaluation.evaluator import Evaluator
 from eeg_win_stack.models import ModelFactory
-from eeg_win_stack.tools.splits import split_data
+from eeg_win_stack.tools.dataset_splitting import DatasetSplitter
 from eeg_win_stack.training.trainer import Trainer, TrainingConfig
 
 
@@ -31,16 +31,16 @@ def main():
         n_jobs=1,
     )
 
-    _, _, test_set = split_data(
+    data_choice = DatasetSplitter(
         windows_ds,
-        split_cfg["split_way"],
         split_cfg["train_size"],
         split_cfg["valid_size"],
         split_cfg["test_size"],
-        split_cfg["shuffle"],
         run_cfg["random_state"],
+        shuffle=split_cfg["shuffle"],
         remove_attribute=None,
     )
+    _, _, test_set = data_choice.split_data(split_cfg["split_way"])
 
     n_channels = windows_ds[0][0].shape[0]
     window_len_samples = windows_ds[0][0].shape[1]
