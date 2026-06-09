@@ -28,7 +28,6 @@ dependencies = [
 
 [tool.setuptools]
 py-modules = [
-  "util",
   "final_decision",
   "results_boxplot",
   "train_and_eval",
