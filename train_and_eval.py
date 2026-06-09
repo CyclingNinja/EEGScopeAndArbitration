@@ -22,7 +22,7 @@ from eeg_win_stack.tools.filters import (
     select_labeled,
 )
 from eeg_win_stack.io.dataset_builder import DatasetBuilder
-from eeg_win_stack.tools.metrics import matthews_correlation_coefficient, con_mat, find_all_zero, weight_function
+from eeg_win_stack.tools.metrics import matthews_correlation_coefficient, convolution_matrix, find_all_zero, weight_function
 from eeg_win_stack.tools.paths import findall
 from eeg_win_stack.tools.dataset_splitting import DatasetSplitter
 from eeg_win_stack.config import load
@@ -334,8 +334,8 @@ for i in range(run["n_repetitions"]):
         print('diff:', sum((np.exp(np.array(y_pred_proba[:, 1])) > 0.5) != y_pred))
 
         # generate confusion matrices
-        confusion_mat_per_recording = con_mat(starts, y_true, y_pred)
-        confusion_mat_per_recording_proba = con_mat(starts, y_true, y_pred, True, y_pred_proba)
+        confusion_mat_per_recording = convolution_matrix(starts, y_true, y_pred)
+        confusion_mat_per_recording_proba = convolution_matrix(starts, y_true, y_pred, True, y_pred_proba)
         print(confusion_mat_per_recording)
         print(confusion_mat_per_recording_proba)
 
