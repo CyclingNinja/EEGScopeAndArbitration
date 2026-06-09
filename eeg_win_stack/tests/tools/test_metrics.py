@@ -50,17 +50,17 @@ def test_convolution_matrix():
     np.testing.assert_array_equal(result, np.array([[1, 1], [1, 1]]))
 
 
-def test_int_targets_do_not_count_as_positive():
+def test_int_targets_count_by_truthiness():
     """
-    Documents that 0/1 ints are NOT treated as bools by the `is True` checks.
-    `1 is True` is False -> lands in FF, not TT
+    Integer 0/1 labels are normalised via truthiness, so 1 counts as positive.
+    pred 1 / true 1 -> TT; [[FF, TF], [FT, TT]]
     """
     starts = [0]
     b = np.array([1, 1, 1])
     c = np.array([1, 1, 1])
     result = convolution_matrix(starts, b, c)
-    assert result[1, 1] == 0  # TT
-    assert result[0, 0] == 1  # FF
+    assert result[1, 1] == 1  # TT
+    assert result[0, 0] == 0  # FF
 
 
 def test_single_recording_whole_array():
@@ -73,6 +73,28 @@ def test_single_recording_whole_array():
     c = np.array([True, False, True])  # majority True
     result = convolution_matrix(starts, b, c)
     np.testing.assert_array_equal(result, np.array([[0, 0], [0, 1]]))
+
+
+def test_convolution_matrix_use_prob():
+    """
+    use_prob path: the recording label is the summed-probability vote
+    (top1_prob over exp(prob)), applied to every recording. A positive
+    prob-vote must land in TT/TF (regression guard: the old `is True` check
+    forced every prob-voted recording into the negative branch).
+    """
+    starts = [0, 2]
+    # cols = [normal, abnormal], given as log-probs (exponentiated internally)
+    prob = np.log(np.array([
+        [0.2, 0.8],   # rec1 -> abnormal mass wins -> pred True
+        [0.3, 0.7],
+        [0.9, 0.1],   # rec2 -> normal mass wins  -> pred False
+        [0.6, 0.4],
+    ]))
+    b = np.array([True, True, False, False])  # rec1 true True, rec2 true False
+    c = np.zeros(4, dtype=bool)  # unused on the use_prob path (len only)
+    result = convolution_matrix(starts, b, c, use_prob=True, prob=prob)
+    # rec1 pred True / true True -> TT ; rec2 pred False / true False -> FF
+    np.testing.assert_array_equal(result, np.array([[1, 0], [0, 1]]))
 
 
 def test_matthews_correlation_coef_identical():
