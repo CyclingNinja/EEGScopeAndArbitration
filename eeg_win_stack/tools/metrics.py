@@ -29,63 +29,50 @@ def weight_function(targets, device="cpu"):
 
 
 def convolution_matrix(starts, b, c, use_prob=False, prob=None):
-    """
+    """Recording-level confusion matrix from window-level predictions.
+
+    Each recording spans the windows ``c[start:next_start]``; its predicted
+    label is a majority vote (``top1``) or a summed-probability vote
+    (``top1_prob``) when ``use_prob`` is set, and its true label is taken from
+    the recording's first window.
 
     Parameters
     ----------
-    starts
-    b
-    c
-    use_prob
-    prob
+    starts : list[int]
+        Window-index boundaries marking the first window of each recording.
+    b : array-like
+        Per-window true labels; only the value at each recording start is used.
+    c : array-like
+        Per-window predicted labels (majority-voting path).
+    use_prob : bool
+        Vote by summed class probability (``top1_prob``) instead of majority.
+    prob : array-like, optional
+        Per-window (log) probabilities, shape (n_windows, 2); exponentiated
+        before voting. Required when ``use_prob`` is set.
 
     Returns
     -------
-
+    np.ndarray
+        2x2 confusion matrix laid out as ``[[FF, TF], [FT, TT]]``
+        (rows = truth, cols = prediction).
     """
     if use_prob:
         prob = np.exp(np.array(prob))
-    b = b.tolist()
-    TT = 0
-    TF = 0
-    FT = 0
-    FF = 0
+    b = np.asarray(b)
+    c = np.asarray(c)
 
-    begin = starts[0]
-    if len(starts) > 1:
-        for end in starts[1:]:
-            predict = c[begin:end].tolist()
-            if use_prob:
-                prob_recording = prob[begin:end]
-                predict = top1_prob(prob_recording)
-            else:
-                predict = top1(predict)
-            if predict is True:
-                if b[begin] is True:
-                    TT += 1
-                else:
-                    TF += 1
-            else:
-                if b[begin] is True:
-                    FT += 1
-                else:
-                    FF += 1
-            begin = end
+    bounds = list(starts) + [len(c)]
+    cm = np.zeros((2, 2), dtype=int)  # cm[true, pred]
 
-    predict = c[begin:].tolist()
-    predict = top1(predict)
-    if predict is True:
-        if b[begin] is True:
-            TT += 1
+    for begin, end in zip(bounds[:-1], bounds[1:]):
+        if use_prob:
+            pred = top1_prob(prob[begin:end])
         else:
-            TF += 1
-    else:
-        if b[begin] is True:
-            FT += 1
-        else:
-            FF += 1
+            pred = bool(top1(c[begin:end].tolist()))
+        true = bool(b[begin])
+        cm[int(true), int(pred)] += 1
 
-    return np.array([[FF, TF], [FT, TT]])
+    return cm
 
 
 def matthews_correlation_coefficient(con_matrix):
