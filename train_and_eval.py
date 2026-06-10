@@ -1,30 +1,17 @@
 import time
 import csv
 import mne
+import numpy as np
 import pandas as pd
-from bayes_opt import BayesianOptimization
-from bayes_opt import SequentialDomainReductionTransformer
 import torch
-from braindecode.datasets import TUHAbnormal,TUH,BaseConcatDataset
-from braindecode.preprocessing import create_fixed_length_windows
-from braindecode.models import ShallowFBCSPNet, Deep4Net,EEGNetv4,EEGNetv1,EEGResNet,TCN,SleepStagerBlanco2020,USleep,\
-                                TIDNet,get_output_shape,HybridNet, SleepStagerChambon2018
-from braindecode.preprocessing import (
-    exponential_moving_standardize, preprocess, Preprocessor, scale)
-from braindecode.datautil import load_concat_dataset
+import matplotlib as plt
+from sklearn.metrics import confusion_matrix
+from braindecode.visualization import plot_confusion_matrix
 from eeg_win_stack.models import ModelFactory
-from eeg_win_stack.io.raw_eeg_loading import custom_crop
-from eeg_win_stack.io.labeling import relabel
-from eeg_win_stack.tools.filters import (
-    remove_tuab_from_dataset,
-    select_by_duration,
-    select_by_channel,
-    select_labeled,
-)
 from eeg_win_stack.io.dataset_builder import DatasetBuilder
-from eeg_win_stack.tools.metrics import matthews_correlation_coefficient, convolution_matrix, find_all_zero, weight_function
-from eeg_win_stack.tools.paths import findall
+from eeg_win_stack.tools.metrics import convolution_matrix, find_all_zero, weight_function
 from eeg_win_stack.tools.dataset_splitting import DatasetSplitter
+from eeg_win_stack.tools.plotting import validation_graph
 from eeg_win_stack.config import load
 
 from torch.nn.functional import elu,relu,gelu
@@ -91,7 +78,6 @@ torch.set_num_threads(run["n_jobs"])  # Sets the available number of threads
 mne.set_log_level(run["mne_log_level"])
 
 data_loading_start = time.time()
-
 
 windows_ds = DatasetBuilder(
     load_saved_windows=data["load_saved_windows"],
@@ -259,7 +245,7 @@ for i in range(run["n_repetitions"]):
             callbacks.append(('es', es))
 
         #Set various parameters for training
-        clf = EEGClassifier(
+        eeg_classifier = EEGClassifier(
             model,
             criterion=torch.nn.NLLLoss(weight_function(train_set.get_metadata().target, device)),
             optimizer=torch.optim.AdamW,
@@ -278,59 +264,33 @@ for i in range(run["n_repetitions"]):
         # in the dataset.
         global i
         if not output["load_pretrained_model"]: # Choose to load a model or train a model
-            clf.fit(train_set, y=None, epochs=training["n_epochs"])
-            clf.save_params('./saved_models/' + model_cfg["name"] + time.strftime('%Y-%m-%d_%H-%M-%S', time.localtime(time.time())) + 'params.pt')
+            eeg_classifier.fit(train_set, y=None, epochs=training["n_epochs"])
+            eeg_classifier.save_params('./saved_models/' + model_cfg["name"] + time.strftime('%Y-%m-%d_%H-%M-%S', time.localtime(time.time())) + 'params.pt')
         else:
-            clf.initialize()
-            clf.load_params('./saved_models/' + params[i])
+            eeg_classifier.initialize()
+            eeg_classifier.load_params('./saved_models/' + params[i])
         model_training_time = time.time() - model_training_start
 
-        import matplotlib.pyplot as plt
-        from matplotlib.lines import Line2D
         if not output["load_pretrained_model"]:
             # Extract loss and accuracy values for plotting from history object
             results_columns = ['train_loss', 'valid_loss', 'train_accuracy', 'valid_accuracy']
 
-            df = pd.DataFrame(clf.history[:, results_columns], columns=results_columns,
-                              index=clf.history[:, 'epoch'])
+            df = pd.DataFrame(eeg_classifier.history[:, results_columns], columns=results_columns,
+                              index=eeg_classifier.history[:, 'epoch'])
             # get percent of misclass for better visual comparison to loss
             df = df.assign(train_misclass=100 - 100 * df.train_accuracy,
                            valid_misclass=100 - 100 * df.valid_accuracy)
             print(df)
+
             if output["plot_result"]: # whether plot the result
-                plt.style.use('seaborn')
-                fig, ax1 = plt.subplots(figsize=(8, 3))
-                df.loc[:, ['train_loss', 'valid_loss']].plot(
-                    ax=ax1, style=['-', ':'], marker='o', color='tab:blue', legend=False, fontsize=14)
-
-                ax1.tick_params(axis='y', labelcolor='tab:blue', labelsize=14)
-                ax1.set_ylabel("Loss", color='tab:blue', fontsize=14)
-
-                ax2 = ax1.twinx()  # instantiate a second axes that shares the same x-axis
-
-                df.loc[:, ['train_misclass', 'valid_misclass']].plot(
-                    ax=ax2, style=['-', ':'], marker='o', color='tab:red', legend=False)
-                ax2.tick_params(axis='y', labelcolor='tab:red', labelsize=14)
-                ax2.set_ylabel("Misclassification Rate [%]", color='tab:red', fontsize=14)
-                ax2.set_ylim(ax2.get_ylim()[0], 85)  # make some room for legend
-                ax1.set_xlabel("Epoch", fontsize=14)
-
-                handles = []
-                handles.append(Line2D([0], [0], color='black', linewidth=1, linestyle='-', label='Train'))
-                handles.append(Line2D([0], [0], color='black', linewidth=1, linestyle=':', label='Valid'))
-                plt.legend(handles, [h.get_label() for h in handles], fontsize=14)
-                plt.tight_layout()
-                plt.show()
-
-        from sklearn.metrics import confusion_matrix
-        from braindecode.visualization import plot_confusion_matrix
+                validation_graph(eeg_classifier)
 
         # test on the testset
         print('test:', test_set.description)
         y_true = test_set.get_metadata().target
         starts = find_all_zero(test_set.get_metadata()['i_window_in_trial'].tolist())
-        y_pred = clf.predict(test_set)
-        y_pred_proba = clf.predict_proba(test_set)
+        y_pred = eeg_classifier.predict(test_set)
+        y_pred_proba = eeg_classifier.predict_proba(test_set)
         print('diff:', sum((np.exp(np.array(y_pred_proba[:, 1])) > 0.5) != y_pred))
 
         # generate confusion matrices
@@ -437,7 +397,7 @@ for i in range(run["n_repetitions"]):
                     writer1.writerow(windows_true[i*16384:(i+1)*16384])
                 writer1.writerow(windows_true[(len_true) // 16384 * 16384:])
 
-                windows_pred = np.exp(np.concatenate((np.array(clf.predict_proba(train_set)[:,1]), np.array(clf.predict_proba(valid_set)[:,1]), np.array(clf.predict_proba(test_set)[:,1])))) #Store predicted probabilities for all data
+                windows_pred = np.exp(np.concatenate((np.array(eeg_classifier.predict_proba(train_set)[:,1]), np.array(eeg_classifier.predict_proba(valid_set)[:,1]), np.array(eeg_classifier.predict_proba(test_set)[:,1])))) #Store predicted probabilities for all data
 
                 for i in range(len_true // 16384):
                     writer1.writerow(windows_pred[i*16384:(i+1)*16384])

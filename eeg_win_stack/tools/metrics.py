@@ -18,7 +18,7 @@ def weight_function(targets, device="cpu"):
 
     Returns
     -------
-
+    torch.tensor
     """
     weights = max(np.count_nonzero(targets == 0), np.count_nonzero(targets == 1)) / torch.tensor(
         [np.count_nonzero(targets == 0), np.count_nonzero(targets == 1)],
@@ -29,7 +29,8 @@ def weight_function(targets, device="cpu"):
 
 
 def convolution_matrix(starts, b, c, use_prob=False, prob=None):
-    """Recording-level confusion matrix from window-level predictions.
+    """
+    Recording-level confusion matrix from window-level predictions.
 
     Each recording spans the windows ``c[start:next_start]``; its predicted
     label is a majority vote (``top1``) or a summed-probability vote
@@ -100,10 +101,31 @@ def matthews_correlation_coefficient(con_matrix):
 
 
 def find_all_zero(input):
+    """
+    Finds all non zero elements in an array
+    Parameters
+    ----------
+    input : np.array
+
+    Returns
+    -------
+    nd.array of all zero elements
+
+    """
     return [i for i in range(len(input)) if input[i] == 0]
 
 
 def top1(a_list):
+    """
+    Returns the label with the most occurrences in a list.
+    Parameters
+    ----------
+    a_list : list
+
+    Returns
+    -------
+    type of list passed
+    """
     if a_list:
         return max(a_list, default="empty", key=lambda v: a_list.count(v))
     else:
@@ -111,12 +133,43 @@ def top1(a_list):
 
 
 def top1_prob(prob):
+    """
+    Aggregates per-window class probabilities into a single label by
+    comparing the summed probability mass of each class.
+
+    Columns are assumed to be [normal, abnormal]. The probabilities are
+    summed across all windows and the class with the greater total wins;
+    ties resolve to normal.
+
+    Parameters
+    ----------
+    prob : np.array
+        2D array of shape (n_windows, 2) holding per-window probabilities,
+        column 0 = normal, column 1 = abnormal.
+
+    Returns
+    -------
+    int
+        1 if the abnormal probability mass exceeds normal, else 0.
+    """
     normal = sum(prob[:, 0])
     abnormal = sum(prob[:, 1])
     return 1 if abnormal > normal else 0
 
 
 def timecost(time_duration):
+    """
+    Timing function for calculating costing on cloud
+    Parameters
+    ----------
+    time_duration int
+
+    Returns
+    -------
+    str
+        format hh:mm:ss
+
+    """
     m, s = divmod(time_duration, 60)
     h, m = divmod(m, 60)
     return "%dh:%dm:%ds" % (h, m, s)
