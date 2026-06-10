@@ -135,6 +135,15 @@ def test_top1():
     assert top_test == 4
 
 
+def test_top1_strings():
+    """
+    Test whethe function has string compatibility.
+    """
+    test_list = ["1", "3", "4", "5", "4", "3", "4"]
+    top_test = top1(test_list)
+    assert top_test == "4"
+
+
 def test_top1_multimodes():
     """
     In cases where there are multiple modes, the mode which achieves most
