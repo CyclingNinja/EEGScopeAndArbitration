@@ -6,7 +6,7 @@ plot_result = False  #
 earlystopping = True # whether  to use earlystopping
 es_patience = 10
 train_whole_dataset_again=True  #Whether to store the confidence of all data when training and predicting
-test_model=False  #Whether to train a model or load a trained model
+load_pretrained_model=False  #Whether to load a pre-trained model instead of training
 params=params_deep4_60
 
 

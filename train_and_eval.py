@@ -1,4 +1,6 @@
 from itertools import product
+import datetime as dt
+from pathlib import Path
 import time
 import pandas as pd
 import numpy as np
@@ -207,7 +209,7 @@ for (random_state, use_tuab, use_tueg, n_tuab, n_tueg, n_load, preload, window_l
 
             # preprocess and save the data,  please note that here is a bug that if set n_jobs=1,
             # there is a risk of memory explosion. So please don't set n_jobs larger than 1 when using the whole dataset.
-            preprocess(ds, preprocessors, save_dir=saved_path, overwrite=False, n_jobs=n_jobs)
+            preprocess(ds, preprocessors, save_dir=saved_path if saved_data else None, overwrite=False, n_jobs=n_jobs)
 
 
         fs = ds.datasets[0].raw.info['sfreq']
@@ -355,6 +357,7 @@ for (random_state, use_tuab, use_tueg, n_tuab, n_tueg, n_load, preload, window_l
                 batch_size=batch_size,
                 callbacks=callbacks,
                 device=device,
+                classes=list(range(n_classes)),
             )
 
 
@@ -364,18 +367,20 @@ for (random_state, use_tuab, use_tueg, n_tuab, n_tueg, n_load, preload, window_l
             # Model training for a specified number of epochs. `y` is None as it is already supplied
             # in the dataset.
             global i
-            if not test_model: # Choose to load a model or train a model
+            if not load_pretrained_model: # Choose to load a model or train a model
                 eeg_classifier.fit(train_set, y=None, epochs=n_epochs)
-                eeg_classifier.save_params('./data/saved_models/'+model_name+time.strftime('%Y-%m-%d_%H-%M-%S',time.localtime(time.time()))+'params.pt')
+                timestamp = dt.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+                eeg_classifier.save_params(Path(saved_models_path) / f"{model_name}{timestamp}params.pt")
 
             else:
+                print("Loading trained models")
                 eeg_classifier.initialize()
-                eeg_classifier.load_params('./data/saved_models/'+params[i])
+                eeg_classifier.load_params(Path(saved_models_path) / params[i])
             model_training_time = time.time() - model_training_start
 
 
 
-            if not test_model:
+            if not load_pretrained_model:
                 # TODO: pull this out to a set of plotting standards
                 # Extract loss and accuracy values for plotting from history object
                 results_columns = ['train_loss', 'valid_loss', 'train_accuracy', 'valid_accuracy']
@@ -428,7 +433,7 @@ for (random_state, use_tuab, use_tueg, n_tuab, n_tueg, n_load, preload, window_l
             print(confusion_mat_per_recording_proba)
 
 
-            confusion_mat = confusion_matrix(y_true, y_pred)
+            confusion_mat = confusion_matrix(y_true, y_pred, labels=list(range(n_classes)))
             print("confusion matrix : ", confusion_mat)
 
 
@@ -455,7 +460,7 @@ for (random_state, use_tuab, use_tueg, n_tuab, n_tueg, n_load, preload, window_l
 
             with open(log_path, 'a') as f: # save the results
                 writer = csv.writer(f, delimiter=',', lineterminator='\n', )
-                if not test_model:
+                if not load_pretrained_model:
                     his_len=len(df)
                     for i2 in range(his_len-1):
                         writer.writerow([df.loc[i2+1][0],df.loc[i2+1][1],df.loc[i2+1][2],df.loc[i2+1][3]])
@@ -471,7 +476,7 @@ for (random_state, use_tuab, use_tueg, n_tuab, n_tueg, n_load, preload, window_l
                                      model_name, final_conv_length, window_stride_samples, relabel_dataset, relabel_label, \
                                      channels, dropout, precision_per_recording, recall_per_recording, acc_per_recording, mcc, mcc_per_recording, deep4_activation, remove_attribute])
                 else:
-                    writer.writerow(['test_model','test_model','test_model','test_model', etl_time, \
+                    writer.writerow(['load_pretrained_model','load_pretrained_model','load_pretrained_model','load_pretrained_model', etl_time, \
                                      model_training_time, acc, precision, recall, i, random_state, use_tuab, use_tueg, n_tuab, n_tueg, n_load, preload, \
                                      window_len_s, tuab_path, tueg_path, saved_data, saved_path, saved_windows_data, saved_windows_path, \
                                      load_saved_data, load_saved_windows, bandpass_filter, low_cut_hz, high_cut_hz, \
@@ -523,7 +528,7 @@ for (random_state, use_tuab, use_tueg, n_tuab, n_tueg, n_load, preload, window_l
                     patients = []
                     sessions = []
                     for i in range(len(paths)):
-                        splits = paths[i][0].split('\\')
+                        splits = paths[i][0].replace('\\', '/').split('/')
                         patients.append(splits[-3])
                         sessions.append(splits[-2])
                     print('patients', patients)
