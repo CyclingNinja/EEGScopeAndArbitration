@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import mne
+import numpy as np
 from braindecode.datasets import BaseConcatDataset, TUH, TUHAbnormal
 from braindecode.preprocessing import Preprocessor, preprocess
 
@@ -132,7 +133,9 @@ class RawEEGLoader:
                 apply_on_array=False,
             ),
             Preprocessor(lambda x: x * 1e6, apply_on_array=True),  # V → µV
-            Preprocessor('clip', a_min=-max_abs_val, a_max=max_abs_val, apply_on_array=True),
+            Preprocessor(
+                lambda x: np.clip(x, -max_abs_val, max_abs_val), apply_on_array=True
+            ),
         ]
         if multiple:
             factor = multiple
