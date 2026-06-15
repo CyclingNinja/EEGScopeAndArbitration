@@ -5,7 +5,6 @@ import mne
 from pathlib import Path
 
 import mlflow
-import torch
 from braindecode.datautil import load_concat_dataset
 
 from eeg_win_stack.config import load
@@ -58,7 +57,7 @@ def main():
         **model_cfg.get("vit", {}),
     )
 
-    params_path = sorted(Path("data/saved_models").glob("*.pt"))[-1]
+    params_path = sorted(Path(cfg["data"]["save_models_path"]).glob("*.pt"))[-1]
     training_config = TrainingConfig(
         learning_rate=training_cfg["learning_rate"],
         weight_decay=training_cfg["weight_decay"],

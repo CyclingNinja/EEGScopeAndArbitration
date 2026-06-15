@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from braindecode.datautil import load_concat_dataset
 from braindecode.datasets import BaseConcatDataset
 from braindecode.preprocessing import create_fixed_length_windows
@@ -196,6 +198,7 @@ class DatasetBuilder:
             assert sub_ds.windows.preload == self.preload
 
         if self.save_windows:
+            Path(self.saved_windows_path).mkdir(parents=True, exist_ok=True)
             windows_ds.save(self.saved_windows_path, overwrite=True)
 
         return windows_ds

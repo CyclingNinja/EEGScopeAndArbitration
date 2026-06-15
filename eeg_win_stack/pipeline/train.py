@@ -26,8 +26,9 @@ def main():
         torch.backends.cudnn.benchmark = True
     torch.set_num_threads(run_cfg["n_jobs"])
 
+
     windows_ds = load_concat_dataset(
-        path="data/saved_windows",
+        path=cfg["data"]["save_windows_path"],
         preload=False,
         target_name="pathological",
         n_jobs=1,
@@ -76,7 +77,7 @@ def main():
     trainer = Trainer(training_config)
     eeg_classifier = trainer.fit(model, train_set, valid_set)
 
-    save_path = Path("data/saved_models") / (
+    save_path = Path(cfg["data"]["save_models_path"]) / (
         model_cfg["name"] + time.strftime("%Y-%m-%d_%H-%M-%S") + "params.pt"
     )
     Trainer.save(eeg_classifier, save_path)
