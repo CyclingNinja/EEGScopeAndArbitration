@@ -199,6 +199,7 @@ class Trainer:
             batch_size=cfg.batch_size,
             callbacks=self._build_callbacks(),
             device=device,
+            classes=[False, True],
         )
 
     def _build_callbacks(self) -> list:

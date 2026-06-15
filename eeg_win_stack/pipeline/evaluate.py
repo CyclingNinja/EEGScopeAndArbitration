@@ -51,13 +51,10 @@ def main():
         input_window_samples=window_len_samples,
         drop_prob=model_cfg["dropout"],
         final_conv_length=model_cfg["final_conv_length"],
-        **model_cfg.get("deep4", {}),
-        **model_cfg.get("tcn", {}),
-        **model_cfg.get("shallow", {}),
-        **model_cfg.get("vit", {}),
+        **model_cfg.get(model_cfg["name"], {}),
     )
 
-    params_path = sorted(Path(cfg["data"]["save_models_path"]).glob("*.pt"))[-1]
+    params_path = sorted(Path(cfg["output"]["saved_models_path"]).glob("*.pt"))[-1]
     training_config = TrainingConfig(
         learning_rate=training_cfg["learning_rate"],
         weight_decay=training_cfg["weight_decay"],

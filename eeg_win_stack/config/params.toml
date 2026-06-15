@@ -6,21 +6,21 @@ n_jobs = 8
 
 [data]
 use_tuab = true
-use_tueg = true
-n_tuab = 2993
+use_tueg = false
+n_tuab = 20
 n_tueg = 50
 n_load = 100
 preload = true
 tuab_path = "/home/sam/Code/EEGScopeAndArbitration/data/TUAB"
-tueg_path = "/home/sam/Code/EEGScopeAndArbitration/data/TUEG"
+tueg_path = ""
 save_recordings = false
-save_recordings_path = "/home/sam/Code/EEGScopeAndArbitration/data/output"
-save_windows = false
-save_windows_path = "/home/sam/Code/EEGScopeAndArbitration/data/output/saved_windows"
+save_recordings_path = "/home/sam/Code/EEGScopeAndArbitration/data/target/saved_recordings"
+save_windows = true
+save_windows_path = "./data/saved_windows"
 load_saved_recordings = false
 load_saved_windows = false
-relabel_datasets = ["/home/sam/Code/EEGScopeAndArbitration/data/TUEG"]
-relabel_labels = ["/home/sam/Code/EEGScopeAndArbitration/data/autoTUAB/autoTUAB_labels.csv"]
+relabel_datasets = ""
+relabel_labels = ""
 
 [preprocessing]
 bandpass_filter = false
@@ -48,7 +48,7 @@ channels = [
 ]
 
 [split]
-split_way = "train_on_tuab_tueg_test_on_tueg"
+split_way = "proportion"
 train_size = 0.8
 valid_size = 0.1
 test_size = 0.1
@@ -67,8 +67,8 @@ es_threshold = 0.001
 checkpoint_dir = ""
 
 [output]
-log_path = "./target/result.csv"
-saved_models_path = "./target/saved_models/"
+log_path = "./data/target/result.csv"
+saved_models_path = "./data/saved_models/"
 plot_result = false
 train_whole_dataset_again = true
 load_pretrained_model = false

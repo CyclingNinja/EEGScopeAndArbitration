@@ -64,7 +64,7 @@ class RawEEGLoader:
             )
             datasets.extend(ds_tuab.datasets)
 
-        if self.use_tueg:
+        if self.use_tueg and self.tueg_path:
             tueg_ids = list(range(self.n_tueg)) if self.n_tueg else None
             ds_tueg = TUH(
                 self.tueg_path,
