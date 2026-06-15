@@ -2,6 +2,9 @@
 
 This repository is used to test the effect of the second stage model (arbitration) and window length (scope) on the EEG abnormal classification task.
 
+For the current `eeg_win_stack` workflow — running the pipeline and logging
+results — see [docs/dvc-pipeline.md](docs/dvc-pipeline.md).
+
 # Document Description
 [batch_test_hyperparameters.default.py](batch_test_hyperparameters.default.py): A template for hyperparameters that need to be tested in batches   
 [train_and_eval_config.default.py](train_and_eval_config.default.py): Template for hyperparameters tested individually   
