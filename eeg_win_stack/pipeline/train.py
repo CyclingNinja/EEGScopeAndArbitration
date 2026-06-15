@@ -56,10 +56,7 @@ def main():
         input_window_samples=window_len_samples,
         drop_prob=model_cfg["dropout"],
         final_conv_length=model_cfg["final_conv_length"],
-        **model_cfg.get("deep4", {}),
-        **model_cfg.get("tcn", {}),
-        **model_cfg.get("shallow", {}),
-        **model_cfg.get("vit", {}),
+        **model_cfg.get(model_cfg["name"], {}),
     )
 
     training_config = TrainingConfig(
@@ -77,7 +74,7 @@ def main():
     trainer = Trainer(training_config)
     eeg_classifier = trainer.fit(model, train_set, valid_set)
 
-    save_path = Path(cfg["data"]["save_models_path"]) / (
+    save_path = Path(cfg["output"]["saved_models_path"]) / (
         model_cfg["name"] + time.strftime("%Y-%m-%d_%H-%M-%S") + "params.pt"
     )
     Trainer.save(eeg_classifier, save_path)
