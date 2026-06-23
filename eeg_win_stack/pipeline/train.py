@@ -44,7 +44,7 @@ def main():
         remove_attribute=None,
     )
 
-    train_set, valid_set, test_set = data_choice.split_data(split_cfg["split_way"])
+    train_set, valid_set, _ = data_choice.split_data(split_cfg["split_way"])
 
     n_channels = windows_ds[0][0].shape[0]
     window_len_samples = windows_ds[0][0].shape[1]

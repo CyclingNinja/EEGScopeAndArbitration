@@ -47,7 +47,7 @@ class EEGLoader:
         parts = [self._channel_processing(mne.io.read_raw_brainvision(path, preload=True, verbose=False)) for path in paths]
 
         def generate_cz(raw_data):
-            return np.row_stack((raw_data[:18], (raw_data[18] + raw_data[19] + raw_data[20] + raw_data[21]) / 4))
+            return np.vstack((raw_data[:18], (raw_data[18] + raw_data[19] + raw_data[20] + raw_data[21]) / 4))
 
         X = [generate_cz(raw.get_data()) for raw in parts]
         y = [1 for raw in parts]
@@ -63,7 +63,7 @@ class EEGLoader:
         window_size_samples = int(sfreq * self.window_len_s)
         stride = self.window_stride_samples or window_size_samples
 
-        windows_dataset = create_from_X_y(
+        return create_from_X_y(
             X,
             y,
             drop_last_window=False,
@@ -72,4 +72,3 @@ class EEGLoader:
             window_stride_samples=stride,
             window_size_samples=window_size_samples,
         )
-        return windows_dataset

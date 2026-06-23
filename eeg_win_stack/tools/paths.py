@@ -7,11 +7,11 @@ from pathlib import Path
 from typing import Any
 
 
-def findall(input: list[Any], value: Any) -> list[int]:
+def findall(items: list[Any], value: Any) -> list[int]:
     start = 0
     res = []
-    while value in input[start:]:
-        res.append(input.index(value, start))
+    while value in items[start:]:
+        res.append(items.index(value, start))
         start = res[-1] + 1
     return res
 
@@ -47,7 +47,7 @@ def time_key(file_name: str) -> list[int]:
     date_id = [int(token) for token in date.split("_")]
     [recording_id] = re.findall(r"t(\d{3})", splits[-1])
     [session_id] = re.findall(r"s(\d{3})", splits[-1])
-    return date_id + [int(session_id)] + [int(recording_id)]
+    return [*date_id, int(session_id), int(recording_id)]
 
 
 def read_all_file_names(path: str, extension: str, key: str = "time") -> list[str]:

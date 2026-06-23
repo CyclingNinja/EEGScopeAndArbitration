@@ -20,12 +20,11 @@ def weight_function(targets, device="cpu"):
     -------
     torch.tensor
     """
-    weights = max(np.count_nonzero(targets == 0), np.count_nonzero(targets == 1)) / torch.tensor(
+    return max(np.count_nonzero(targets == 0), np.count_nonzero(targets == 1)) / torch.tensor(
         [np.count_nonzero(targets == 0), np.count_nonzero(targets == 1)],
         dtype=torch.float,
         device=device,
     )
-    return weights
 
 
 def convolution_matrix(starts, b, c, use_prob=False, prob=None):
@@ -62,7 +61,7 @@ def convolution_matrix(starts, b, c, use_prob=False, prob=None):
     b = np.asarray(b)
     c = np.asarray(c)
 
-    bounds = list(starts) + [len(c)]
+    bounds = [*starts, len(c)]
     cm = np.zeros((2, 2), dtype=int)  # cm[true, pred]
 
     for begin, end in zip(bounds[:-1], bounds[1:]):
@@ -100,19 +99,19 @@ def matthews_correlation_coefficient(con_matrix):
     )
 
 
-def find_all_zero(input):
+def find_all_zero(values):
     """
     Finds all non zero elements in an array
     Parameters
     ----------
-    input : np.array
+    values : np.array
 
     Returns
     -------
     nd.array of all zero elements
 
     """
-    return [i for i in range(len(input)) if input[i] == 0]
+    return [i for i in range(len(values)) if values[i] == 0]
 
 
 def top1(a_list):
@@ -128,8 +127,7 @@ def top1(a_list):
     """
     if a_list:
         return max(a_list, default="empty", key=lambda v: a_list.count(v))
-    else:
-        raise ValueError("Empty predictions passed to convolutional matrix")
+    raise ValueError("Empty predictions passed to convolutional matrix")
 
 
 def top1_prob(prob):
@@ -172,4 +170,4 @@ def timecost(time_duration):
     """
     m, s = divmod(time_duration, 60)
     h, m = divmod(m, 60)
-    return "%dh:%dm:%ds" % (h, m, s)
+    return f"{int(h)}h:{int(m)}m:{int(s)}s"

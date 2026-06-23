@@ -110,8 +110,8 @@ def test_matthews_correlation_coef_different():
 
 
 def test_find_all_zeros():
-    input = [1, 2, 1, 2, 0]
-    res = find_all_zero(input)
+    values = [1, 2, 1, 2, 0]
+    res = find_all_zero(values)
     assert res == [4]
     assert isinstance(res, list)
 
@@ -122,7 +122,6 @@ def test_find_all_zeros_empty():
     assert res_empty == []
 
     input_no_zeros = [1, 2, 3]
-    res_no_zeros = find_all_zero(input_no_zeros)
     assert find_all_zero(input_no_zeros) == []
 
 

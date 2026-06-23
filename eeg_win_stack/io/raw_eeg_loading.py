@@ -7,7 +7,7 @@ from pathlib import Path
 import mne
 import numpy as np
 from braindecode.datasets import BaseConcatDataset, TUH, TUHAbnormal
-from braindecode.preprocessing import Preprocessor, preprocess
+from braindecode.preprocessing import Preprocessor, exponential_moving_standardize, preprocess
 
 from eeg_win_stack.io.labeling import relabel
 from eeg_win_stack.tools.filters import (
@@ -97,8 +97,7 @@ class RawEEGLoader:
                 )
 
         recordings = select_labeled(recordings)
-        recordings = select_by_channel(recordings, channels)
-        return recordings
+        return select_by_channel(recordings, channels)
 
     def preprocess_recordings(
         self,
@@ -145,7 +144,6 @@ class RawEEGLoader:
                 Preprocessor('filter', l_freq=low_cut_hz, h_freq=high_cut_hz)
             )
         if standardization:
-            from braindecode.preprocessing import exponential_moving_standardize
             preprocessors.append(
                 Preprocessor(
                     exponential_moving_standardize,

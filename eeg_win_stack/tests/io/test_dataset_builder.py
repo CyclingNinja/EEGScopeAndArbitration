@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 from eeg_win_stack.io.dataset_builder import DatasetBuilder
 

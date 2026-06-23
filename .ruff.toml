@@ -1,7 +1,7 @@
-target-version = "py310"
+target-version = "py39"
 line-length = 120
 exclude = [
-  ".git,",
+  ".git",
   "__pycache__",
   "build",
   "eeg_win_stack/version.py",
@@ -46,6 +46,12 @@ extend-ignore = [
   "RUF012", # Mutable class attributes should be annotated with `typing.ClassVar`
   "RUF013", # PEP 484 prohibits implicit `Optional`
   "RUF015", # Prefer `next(iter(...))` over single element slice
+  # flake8-print (T20)
+  "T201", # TEMP: prints used as diagnostics; remove this ignore once
+          # structured logging lands (refactor backlog).
+  # pandas-vet (PD)
+  "PD101", # nunique() constant-check is readable; the "efficient"
+           # alternatives are less clear and type-fragile here.
 ]
 
 [lint.per-file-ignores]
@@ -73,7 +79,9 @@ extend-ignore = [
 ]
 "test_*.py" = [
   "E402", # Module level import not at top of cell
-  "SLF001" # access to a private member
+  "INP001", # tests are intentionally not a package (no __init__.py)
+  "PLC0415", # local imports are a legitimate pattern in tests
+  "PT019", # @patch-injected mocks read as underscore params, not fixtures
 ]
 
 [lint.pydocstyle]

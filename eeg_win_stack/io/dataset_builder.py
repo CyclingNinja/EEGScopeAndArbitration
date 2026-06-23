@@ -155,7 +155,7 @@ class DatasetBuilder:
             relabel_dataset=self.relabel_dataset,
         )
         save_dir = self.saved_data_path if self.save_preprocessed else None
-        recordings = loader.preprocess_recordings(
+        return loader.preprocess_recordings(
             recordings,
             sampling_freq=self.sampling_freq,
             sec_to_cut=self.sec_to_cut,
@@ -171,7 +171,6 @@ class DatasetBuilder:
             init_block_size=self.init_block_size,
             save_dir=save_dir,
         )
-        return recordings
 
     # ------------------------------------------------------------------
     # Private: windowing

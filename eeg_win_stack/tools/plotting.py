@@ -23,11 +23,12 @@ def boxplot_with_scatter(grouped, column_of_interest):
     """ From groupby object 'grouped' create boxplot with superimposed scatter plot of 'column_of_interest' """
 
     # Gather the data from each group
+    rng = np.random.default_rng()
     names, vals, xs = [], [], []
     for i, (name, subdf) in enumerate(grouped):
         names.append(name)
         vals.append(subdf[column_of_interest].tolist())
-        xs.append(np.random.normal(i + 1, 0.04, subdf.shape[0]))
+        xs.append(rng.normal(i + 1, 0.04, subdf.shape[0]))
 
     # plot boxplot
     plt.boxplot(vals, labels=names)
@@ -96,7 +97,7 @@ def validation_graph(eeg_classifier):
                        valid_misclass=100 - 100 * df.valid_accuracy)
         print(df)
         plt.style.use('seaborn')
-        fig, ax1 = plt.subplots(figsize=(8, 3))
+        _, ax1 = plt.subplots(figsize=(8, 3))
         df.loc[:, ['train_loss', 'valid_loss']].plot(
             ax=ax1, style=['-', ':'], marker='o', color='tab:blue', legend=False, fontsize=14)
 
