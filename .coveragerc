@@ -9,7 +9,7 @@ disable_warnings =
   module-not-measured
 
 [report]
-exculde_lines = 
+exclude_lines =
   pragma: no cover
   pragma: py{ignore_python_version}
   except ImportError
