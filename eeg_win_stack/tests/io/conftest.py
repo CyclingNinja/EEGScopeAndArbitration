@@ -21,7 +21,8 @@ def synthetic_raw():
     """22-channel MNE RawArray matching EEGLoader's expected input channel layout."""
     sfreq = 256.0
     n_times = int(sfreq * 10)
-    data = np.random.randn(len(RAW_CHANNEL_NAMES), n_times) * 1e-6
+    rng = np.random.default_rng()
+    data = rng.standard_normal((len(RAW_CHANNEL_NAMES), n_times)) * 1e-6
     info = mne.create_info(RAW_CHANNEL_NAMES, sfreq=sfreq, ch_types="eeg")
     return mne.io.RawArray(data, info, verbose=False)
 

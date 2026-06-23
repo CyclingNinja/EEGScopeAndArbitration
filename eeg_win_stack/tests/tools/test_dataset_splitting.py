@@ -76,7 +76,7 @@ class TestSplitDataDispatch:
             splitter.split_data("nope")
 
     @pytest.mark.parametrize(
-        "split_way, method",
+        ("split_way", "method"),
         [
             ("proportion", "split_by_proportion"),
             ("folder", "split_by_folder"),
@@ -91,7 +91,7 @@ class TestSplitDataDispatch:
         assert splitter.split_data(split_way) == sentinel
 
     @pytest.mark.parametrize(
-        "split_way, expected_test_on",
+        ("split_way", "expected_test_on"),
         [
             ("train_on_tuab_tueg_test_on_tueg", "tueg"),
             ("train_on_tuab_tueg_test_on_tuab", "tuab"),

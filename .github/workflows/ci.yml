@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: ${{ matrix.toxenv }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # py310+ envs can be added once the deferred Python migration lands.
+        toxenv: [py39, lint]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      # tox-uv lets uv provision the interpreter, so no separate setup-python.
+      - name: Run ${{ matrix.toxenv }}
+        run: uvx --with tox-uv tox -e ${{ matrix.toxenv }}
+
+      - name: Upload coverage
+        if: matrix.toxenv == 'py39'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-xml
+          path: coverage.xml
+          if-no-files-found: ignore

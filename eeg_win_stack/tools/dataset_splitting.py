@@ -199,7 +199,7 @@ class DatasetSplitter:
         tueg_test = splits["test"]
 
         train_valid_set = BaseConcatDataset(
-            ([i for i in tueg_train.datasets]) + ([j for j in tuab_train.datasets])
+            list(tueg_train.datasets) + list(tuab_train.datasets)
         )
         idx_train, idx_valid = train_test_split(
             np.arange(len(train_valid_set.description["path"])),

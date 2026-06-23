@@ -119,7 +119,7 @@ class Trainer:
         eeg_classifier = self._build_classifier(model, train_set, valid_set)
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
-        eeg_classifier.fit(train_set, y=None, epochs=self.config.n_epochs)  # noqa
+        eeg_classifier.fit(train_set, y=None, epochs=self.config.n_epochs)
         return eeg_classifier
 
     def load(self, model, params_path) -> EEGClassifier:
