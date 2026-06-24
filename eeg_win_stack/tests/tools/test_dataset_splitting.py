@@ -248,7 +248,7 @@ class TestSplitTuabTueg:
             "tuab/aaaaaaaa/s001/r.edf",  # True  -> tuab train
             "tuab/bbbbbbbb/s001/r.edf",  # True  -> tuab train
             "tuab/cccccccc/s001/r.edf",  # False -> tuab test
-            "tueg/p001/s001/r.edf",      # sentinel -> tueg
+            "tueg/p001/s001/r.edf",  # sentinel -> tueg
             "tueg/p002/s001/r.edf",
             "tueg/p003/s001/r.edf",
             "tueg/p004/s001/r.edf",

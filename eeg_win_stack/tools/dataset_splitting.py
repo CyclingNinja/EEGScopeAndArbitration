@@ -198,9 +198,7 @@ class DatasetSplitter:
         tueg_train = splits["train"]
         tueg_test = splits["test"]
 
-        train_valid_set = BaseConcatDataset(
-            list(tueg_train.datasets) + list(tuab_train.datasets)
-        )
+        train_valid_set = BaseConcatDataset(list(tueg_train.datasets) + list(tuab_train.datasets))
         idx_train, idx_valid = train_test_split(
             np.arange(len(train_valid_set.description["path"])),
             random_state=self.random_state,

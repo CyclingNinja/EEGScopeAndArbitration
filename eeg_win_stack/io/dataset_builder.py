@@ -121,7 +121,7 @@ class DatasetBuilder:
             path=self.saved_windows_path,
             preload=False,
             ids_to_load=load_ids,
-            target_name='pathological',
+            target_name="pathological",
             n_jobs=1,
         )
 
@@ -131,7 +131,7 @@ class DatasetBuilder:
             path=self.saved_data_path,
             preload=self.preload,
             ids_to_load=load_ids,
-            target_name='pathological',
+            target_name="pathological",
         )
 
     def _load_and_preprocess_raw(self) -> BaseConcatDataset:
@@ -177,7 +177,7 @@ class DatasetBuilder:
     # ------------------------------------------------------------------
 
     def _window(self, recordings: BaseConcatDataset) -> BaseConcatDataset:
-        fs = recordings.datasets[0].raw.info['sfreq']
+        fs = recordings.datasets[0].raw.info["sfreq"]
         window_len_samples = int(fs * self.window_len_s)
         stride = self.window_stride_samples or window_len_samples
 

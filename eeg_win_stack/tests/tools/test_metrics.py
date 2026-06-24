@@ -10,20 +10,20 @@ from eeg_win_stack.tools.metrics import (
     matthews_correlation_coefficient,
     convolution_matrix,
     top1,
-    top1_prob
+    top1_prob,
 )
 
 
 def test_weight_function():
-    target = np.array([0., 0., 1., 1.])
+    target = np.array([0.0, 0.0, 1.0, 1.0])
     weights = weight_function(target)
-    torch.testing.assert_close(weights, torch.tensor([1., 1.]))
+    torch.testing.assert_close(weights, torch.tensor([1.0, 1.0]))
     assert isinstance(weights, torch.Tensor)
     assert weights.shape == (2,)
 
 
 def test_weights_apply():
-    target = np.array([0., 0., 0., 1.])
+    target = np.array([0.0, 0.0, 0.0, 1.0])
     weights = weight_function(target)
     torch.testing.assert_close(weights, torch.tensor([1.0, 3.0]))
 
@@ -84,12 +84,16 @@ def test_convolution_matrix_use_prob():
     """
     starts = [0, 2]
     # cols = [normal, abnormal], given as log-probs (exponentiated internally)
-    prob = np.log(np.array([
-        [0.2, 0.8],   # rec1 -> abnormal mass wins -> pred True
-        [0.3, 0.7],
-        [0.9, 0.1],   # rec2 -> normal mass wins  -> pred False
-        [0.6, 0.4],
-    ]))
+    prob = np.log(
+        np.array(
+            [
+                [0.2, 0.8],  # rec1 -> abnormal mass wins -> pred True
+                [0.3, 0.7],
+                [0.9, 0.1],  # rec2 -> normal mass wins  -> pred False
+                [0.6, 0.4],
+            ]
+        )
+    )
     b = np.array([True, True, False, False])  # rec1 true True, rec2 true False
     c = np.zeros(4, dtype=bool)  # unused on the use_prob path (len only)
     result = convolution_matrix(starts, b, c, use_prob=True, prob=prob)

@@ -10,5 +10,4 @@ class AbstractModel(ABC, nn.Module):
         self.input_window_samples = input_window_samples
 
     @abstractmethod
-    def forward(self, x):
-        ...
+    def forward(self, x): ...

@@ -36,8 +36,16 @@ def relabel(dataset, label_path, dataset_folder):
 
             full_folder = Path(dataset_folder) / row[0][9:]
             this_file_names = read_all_file_names(str(full_folder), ".edf", key="time")
-            [all_labelled_tueg_file_names.append(ff) for ff in this_file_names if (id_ in Path(ff).name and Path(ff).name in des_file)]
-            [tueg_labels.append(label) for ff in this_file_names if (id_ in Path(ff).name and Path(ff).name in des_file)]
+            [
+                all_labelled_tueg_file_names.append(ff)
+                for ff in this_file_names
+                if (id_ in Path(ff).name and Path(ff).name in des_file)
+            ]
+            [
+                tueg_labels.append(label)
+                for ff in this_file_names
+                if (id_ in Path(ff).name and Path(ff).name in des_file)
+            ]
 
     print("all_labelled_TUEG_file_names:", all_labelled_tueg_file_names)
 

@@ -31,20 +31,41 @@ class EEGLoader:
         raw.rename_channels({"EEG T8-REF": "EEG T4-REF"})
         raw.rename_channels({"EEG P7-REF": "EEG T5-REF"})
         raw.rename_channels({"EEG P8-REF": "EEG T6-REF"})
-        raw.reorder_channels([
-            "EEG FP1-REF", "EEG FP2-REF", "EEG F3-REF", "EEG F4-REF", "EEG C3-REF",
-            "EEG C4-REF", "EEG P3-REF", "EEG P4-REF", "EEG O1-REF", "EEG O2-REF",
-            "EEG F7-REF", "EEG F8-REF", "EEG T3-REF", "EEG T4-REF", "EEG T5-REF",
-            "EEG T6-REF", "EEG FZ-REF", "EEG PZ-REF", "EEG FC1-REF", "EEG FC2-REF", "EEG CP1-REF", "EEG CP2-REF"
-        ])
+        raw.reorder_channels(
+            [
+                "EEG FP1-REF",
+                "EEG FP2-REF",
+                "EEG F3-REF",
+                "EEG F4-REF",
+                "EEG C3-REF",
+                "EEG C4-REF",
+                "EEG P3-REF",
+                "EEG P4-REF",
+                "EEG O1-REF",
+                "EEG O2-REF",
+                "EEG F7-REF",
+                "EEG F8-REF",
+                "EEG T3-REF",
+                "EEG T4-REF",
+                "EEG T5-REF",
+                "EEG T6-REF",
+                "EEG FZ-REF",
+                "EEG PZ-REF",
+                "EEG FC1-REF",
+                "EEG FC2-REF",
+                "EEG CP1-REF",
+                "EEG CP2-REF",
+            ]
+        )
         return raw
-
 
     def load_brainvision_as_windows(self):
         paths = get_full_filelist(self.data_folder, ".vhdr")
         print(paths)
 
-        parts = [self._channel_processing(mne.io.read_raw_brainvision(path, preload=True, verbose=False)) for path in paths]
+        parts = [
+            self._channel_processing(mne.io.read_raw_brainvision(path, preload=True, verbose=False)) for path in paths
+        ]
 
         def generate_cz(raw_data):
             return np.vstack((raw_data[:18], (raw_data[18] + raw_data[19] + raw_data[20] + raw_data[21]) / 4))
@@ -54,10 +75,25 @@ class EEGLoader:
         sfreq = parts[0].info["sfreq"]
 
         channels = [
-            "EEG FP1-REF", "EEG FP2-REF", "EEG F3-REF", "EEG F4-REF", "EEG C3-REF",
-            "EEG C4-REF", "EEG P3-REF", "EEG P4-REF", "EEG O1-REF", "EEG O2-REF",
-            "EEG F7-REF", "EEG F8-REF", "EEG T3-REF", "EEG T4-REF", "EEG T5-REF",
-            "EEG T6-REF", "EEG FZ-REF", "EEG PZ-REF", "EEG CZ-REF",
+            "EEG FP1-REF",
+            "EEG FP2-REF",
+            "EEG F3-REF",
+            "EEG F4-REF",
+            "EEG C3-REF",
+            "EEG C4-REF",
+            "EEG P3-REF",
+            "EEG P4-REF",
+            "EEG O1-REF",
+            "EEG O2-REF",
+            "EEG F7-REF",
+            "EEG F8-REF",
+            "EEG T3-REF",
+            "EEG T4-REF",
+            "EEG T5-REF",
+            "EEG T6-REF",
+            "EEG FZ-REF",
+            "EEG PZ-REF",
+            "EEG CZ-REF",
         ]
 
         window_size_samples = int(sfreq * self.window_len_s)

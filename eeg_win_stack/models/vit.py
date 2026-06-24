@@ -18,7 +18,7 @@ class PreNorm(nn.Module):
 
 
 class FeedForward(nn.Module):
-    def __init__(self, dim, hidden_dim, dropout=0.):
+    def __init__(self, dim, hidden_dim, dropout=0.0):
         super().__init__()
         self.net = nn.Sequential(
             nn.Linear(dim, hidden_dim),
@@ -33,41 +33,49 @@ class FeedForward(nn.Module):
 
 
 class Attention(nn.Module):
-    def __init__(self, dim, heads=8, dim_head=64, dropout=0.):
+    def __init__(self, dim, heads=8, dim_head=64, dropout=0.0):
         super().__init__()
         inner_dim = dim_head * heads
         project_out = not (heads == 1 and dim_head == dim)
 
         self.heads = heads
-        self.scale = dim_head ** -0.5
+        self.scale = dim_head**-0.5
         self.attend = nn.Softmax(dim=-1)
         self.dropout = nn.Dropout(dropout)
         self.to_qkv = nn.Linear(dim, inner_dim * 3, bias=False)
-        self.to_out = nn.Sequential(
-            nn.Linear(inner_dim, dim),
-            nn.Dropout(dropout),
-        ) if project_out else nn.Identity()
+        self.to_out = (
+            nn.Sequential(
+                nn.Linear(inner_dim, dim),
+                nn.Dropout(dropout),
+            )
+            if project_out
+            else nn.Identity()
+        )
 
     def forward(self, x):
         qkv = self.to_qkv(x).chunk(3, dim=-1)
-        q, k, v = (rearrange(t, 'b n (h d) -> b h n d', h=self.heads) for t in qkv)
+        q, k, v = (rearrange(t, "b n (h d) -> b h n d", h=self.heads) for t in qkv)
         dots = torch.matmul(q, k.transpose(-1, -2)) * self.scale
         attn = self.attend(dots)
         attn = self.dropout(attn)
         out = torch.matmul(attn, v)
-        out = rearrange(out, 'b h n d -> b n (h d)')
+        out = rearrange(out, "b h n d -> b n (h d)")
         return self.to_out(out)
 
 
 class Transformer(nn.Module):
-    def __init__(self, dim, depth, heads, dim_head, mlp_dim, dropout=0.):
+    def __init__(self, dim, depth, heads, dim_head, mlp_dim, dropout=0.0):
         super().__init__()
         self.layers = nn.ModuleList([])
         for _ in range(depth):
-            self.layers.append(nn.ModuleList([
-                PreNorm(dim, Attention(dim, heads=heads, dim_head=dim_head, dropout=dropout)),
-                PreNorm(dim, FeedForward(dim, mlp_dim, dropout=dropout)),
-            ]))
+            self.layers.append(
+                nn.ModuleList(
+                    [
+                        PreNorm(dim, Attention(dim, heads=heads, dim_head=dim_head, dropout=dropout)),
+                        PreNorm(dim, FeedForward(dim, mlp_dim, dropout=dropout)),
+                    ]
+                )
+            )
 
     def forward(self, x):
         for attn, ff in self.layers:
@@ -76,7 +84,7 @@ class Transformer(nn.Module):
         return x
 
 
-@register('vit')
+@register("vit")
 class ViT(AbstractModel):
     def __init__(
         self,
@@ -88,17 +96,17 @@ class ViT(AbstractModel):
         depth,
         heads,
         mlp_dim,
-        pool='cls',
+        pool="cls",
         dim_head=64,
-        dropout=0.,
-        emb_dropout=0.,
+        dropout=0.0,
+        emb_dropout=0.0,
     ):
         super().__init__(n_channels, n_classes, input_window_samples)
-        assert pool in {'cls', 'mean'}, "pool must be 'cls' or 'mean'"
+        assert pool in {"cls", "mean"}, "pool must be 'cls' or 'mean'"
 
         num_patches = (input_window_samples // patch_size) * n_channels
         self.to_patch_embedding = nn.Sequential(
-            Rearrange('b c (l p1) -> b (c l) (p1)', p1=patch_size),
+            Rearrange("b c (l p1) -> b (c l) (p1)", p1=patch_size),
             nn.Linear(patch_size, dim),
         )
         self.pos_embedding = nn.Parameter(torch.randn(1, num_patches + 1, dim))
@@ -116,11 +124,11 @@ class ViT(AbstractModel):
     def forward(self, x):
         x = self.to_patch_embedding(x)
         b, n, _ = x.shape
-        cls_tokens = repeat(self.cls_token, '1 n d -> b n d', b=b)
+        cls_tokens = repeat(self.cls_token, "1 n d -> b n d", b=b)
         x = torch.cat((cls_tokens, x), dim=1)
-        x += self.pos_embedding[:, :(n + 1)]
+        x += self.pos_embedding[:, : (n + 1)]
         x = self.dropout(x)
         x = self.transformer(x)
-        x = x.mean(dim=1) if self.pool == 'mean' else x[:, 0]
+        x = x.mean(dim=1) if self.pool == "mean" else x[:, 0]
         x = self.to_latent(x)
         return self.mlp_head(x)
