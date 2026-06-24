@@ -3,20 +3,22 @@ from __future__ import annotations
 import itertools
 from pathlib import Path
 
+import pandas as pd
 import pytest
 from unittest.mock import Mock
 
 from eeg_win_stack.tools.dataset_splitting import DatasetSplitter
 
+
 @pytest.fixture
 def windows_ds():
     ds = Mock()
-    patient_1 = [f"patient_001/recording_{i:03d}" for i in range(3)]
-    patient_2 = [f"patient_002/recording_{i:03d}" for i in range(3)]
-    patient_3 = [f"patient_003/recording_{i:03d}" for i in range(3)]
-    patient_4 = [f"patient_004/recording_{i:03d}" for i in range(3)]
-
-    ds.description.loc = {"path": [patient_1 + patient_2 + patient_3 + patient_4]}
+    # Four patients, three recordings each. ``parts[-3]`` is the patient id, which
+    # is what ``split_by_patient`` groups on, so paths need at least three parts.
+    paths = [
+        f"patient_{patient:03d}/recording_{recording:03d}/data.fif" for patient in range(1, 5) for recording in range(3)
+    ]
+    ds.description = pd.DataFrame({"path": paths})
     ds.split.return_value = {
         "train": [0, 1, 2, 3, 4, 5],
         "valid": [6, 7, 8],
@@ -24,10 +26,11 @@ def windows_ds():
     }
     return ds
 
+
 @pytest.fixture
 def mock_dataset_splitter(windows_ds):
-    ds_splitter = DatasetSplitter(windows_ds, 0.5, 0.25, 0.25, 42, False)
-    return ds_splitter
+    return DatasetSplitter(windows_ds, 0.5, 0.25, 0.25, 42, False)
+
 
 def test_split_indices_by_groups_keeps_groups_together(mock_dataset_splitter):
     groups = ["a", "a", "b", "b", "c", "c", "d", "d"]
@@ -72,9 +75,10 @@ def test_split_by_proportion_partitions_indices_correctly(mock_dataset_splitter,
     assert sorted(all_indices) == list(range(12))
     assert len(all_indices) == len(set(all_indices))
 
-    assert result[0] == windows_ds.split.return_value['train']
-    assert result[1] == windows_ds.split.return_value['valid']
-    assert result[2] == windows_ds.split.return_value['test']
+    assert result[0] == windows_ds.split.return_value["train"]
+    assert result[1] == windows_ds.split.return_value["valid"]
+    assert result[2] == windows_ds.split.return_value["test"]
+
 
 def test_split_by_folder_marks_eval_as_test_and_others_as_train(mock_dataset_splitter):
     pass
@@ -96,10 +100,7 @@ def test_split_by_patient(mock_dataset_splitter, windows_ds):
     assert len(all_indices) == len(set(all_indices))
 
     def patients_in(indices):
-        return {
-            Path(windows_ds.description.iloc[i]["path"]).parts[-3]
-            for i in indices
-        }
+        return {Path(windows_ds.description.iloc[i]["path"]).parts[-3] for i in indices}
 
     train_patients = patients_in(split_arg["train"])
     valid_patients = patients_in(split_arg["valid"])

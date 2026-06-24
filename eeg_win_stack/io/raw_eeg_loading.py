@@ -92,9 +92,7 @@ class RawEEGLoader:
 
         if relabel_label:
             for label_path, dataset_folder in zip(relabel_label, relabel_dataset):
-                recordings.set_description(
-                    relabel(recordings, label_path, dataset_folder), overwrite=True
-                )
+                recordings.set_description(relabel(recordings, label_path, dataset_folder), overwrite=True)
 
         recordings = select_labeled(recordings)
         return select_by_channel(recordings, channels)
@@ -118,12 +116,9 @@ class RawEEGLoader:
     ) -> BaseConcatDataset:
         """Resample, crop, scale, clip, and optionally filter/standardise recordings."""
         preprocessors = [
-            Preprocessor('pick_types', eeg=True, meg=False, stim=False),
-            *(
-                [Preprocessor('pick_channels', ch_names=channels, ordered=True)]
-                if channels else []
-            ),
-            Preprocessor(fn='resample', sfreq=sampling_freq),
+            Preprocessor("pick_types", eeg=True, meg=False, stim=False),
+            *([Preprocessor("pick_channels", ch_names=channels, ordered=True)] if channels else []),
+            Preprocessor(fn="resample", sfreq=sampling_freq),
             Preprocessor(
                 custom_crop,
                 tmin=sec_to_cut,
@@ -132,17 +127,13 @@ class RawEEGLoader:
                 apply_on_array=False,
             ),
             Preprocessor(lambda x: x * 1e6, apply_on_array=True),  # V → µV
-            Preprocessor(
-                lambda x: np.clip(x, -max_abs_val, max_abs_val), apply_on_array=True
-            ),
+            Preprocessor(lambda x: np.clip(x, -max_abs_val, max_abs_val), apply_on_array=True),
         ]
         if multiple:
             factor = multiple
             preprocessors.append(Preprocessor(lambda x: x * factor, apply_on_array=True))
         if bandpass_filter:
-            preprocessors.append(
-                Preprocessor("filter", l_freq=low_cut_hz, h_freq=high_cut_hz)
-            )
+            preprocessors.append(Preprocessor("filter", l_freq=low_cut_hz, h_freq=high_cut_hz))
         if standardization:
             preprocessors.append(
                 Preprocessor(

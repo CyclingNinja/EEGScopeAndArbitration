@@ -73,9 +73,7 @@ def main():
     trainer = Trainer(training_config)
     eeg_classifier = trainer.fit(model, train_set, valid_set)
 
-    save_path = Path("data/saved_models") / (
-        model_cfg["name"] + time.strftime("%Y-%m-%d_%H-%M-%S") + "params.pt"
-    )
+    save_path = Path("data/saved_models") / (model_cfg["name"] + time.strftime("%Y-%m-%d_%H-%M-%S") + "params.pt")
     Trainer.save(eeg_classifier, save_path)
 
 

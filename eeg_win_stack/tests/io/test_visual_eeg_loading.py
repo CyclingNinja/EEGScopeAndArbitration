@@ -64,20 +64,8 @@ class TestLoadBrainvisionAsWindows:
     )
     @patch("mne.io.read_raw_brainvision")
     def test_reads_each_file(self, mock_read, _mock_files, loader, synthetic_raw):
-        # Both reads must return independent raw copies (modified in-place)
-        import mne
-        import numpy as np
-        from conftest import RAW_CHANNEL_NAMES
-
-        def make_raw():
-            sfreq = 256.0
-            n_times = int(sfreq * 10)
-            rng = np.random.default_rng()
-            data = rng.standard_normal((22, n_times)) * 1e-6
-            info = mne.create_info(RAW_CHANNEL_NAMES, sfreq=sfreq, ch_types="eeg")
-            return mne.io.RawArray(data, info, verbose=False)
-
-        mock_read.side_effect = [make_raw(), make_raw()]
+        # Both reads must return independent raw copies (loader modifies in-place)
+        mock_read.side_effect = [synthetic_raw.copy(), synthetic_raw.copy()]
         loader.load_brainvision_as_windows()
         assert mock_read.call_count == 2
 
