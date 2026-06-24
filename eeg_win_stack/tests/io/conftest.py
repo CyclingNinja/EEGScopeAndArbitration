@@ -11,8 +11,28 @@ import pytest
 
 # Channel names as they appear in a raw BrainVision file before EEGLoader renames them.
 RAW_CHANNEL_NAMES = [
-    "FP1", "FP2", "F3", "F4", "C3", "C4", "P3", "P4", "O1", "O2",
-    "F7", "F8", "T7", "T8", "P7", "P8", "FZ", "PZ", "FC1", "FC2", "CP1", "CP2",
+    "FP1",
+    "FP2",
+    "F3",
+    "F4",
+    "C3",
+    "C4",
+    "P3",
+    "P4",
+    "O1",
+    "O2",
+    "F7",
+    "F8",
+    "T7",
+    "T8",
+    "P7",
+    "P8",
+    "FZ",
+    "PZ",
+    "FC1",
+    "FC2",
+    "CP1",
+    "CP2",
 ]
 
 

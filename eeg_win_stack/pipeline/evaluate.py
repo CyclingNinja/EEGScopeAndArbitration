@@ -76,14 +76,16 @@ def main():
 
     mlflow.set_tracking_uri("mlruns")
     with mlflow.start_run():
-        mlflow.log_params({
-            "model": model_cfg["name"],
-            "learning_rate": training_cfg["learning_rate"],
-            "weight_decay": training_cfg["weight_decay"],
-            "batch_size": training_cfg["batch_size"],
-            "n_epochs": training_cfg["n_epochs"],
-            "split_way": split_cfg["split_way"],
-        })
+        mlflow.log_params(
+            {
+                "model": model_cfg["name"],
+                "learning_rate": training_cfg["learning_rate"],
+                "weight_decay": training_cfg["weight_decay"],
+                "batch_size": training_cfg["batch_size"],
+                "n_epochs": training_cfg["n_epochs"],
+                "split_way": split_cfg["split_way"],
+            }
+        )
         mlflow.log_metrics(metrics)
 
 

@@ -9,7 +9,7 @@ from .base import AbstractModel
 from .factory import register
 
 
-@register('tcn_1')
+@register("tcn_1")
 class Tcn(AbstractModel):
     """Temporal Convolutional Network (TCN) from Bai et al 2018.
 
@@ -52,7 +52,7 @@ class Tcn(AbstractModel):
         kernel_size,
         drop_prob,
         add_log_softmax,
-        last_layer_type='conv',
+        last_layer_type="conv",
     ):
         super().__init__(n_channels, n_classes, input_window_samples)
         self.ensuredims = Ensure4d()
@@ -61,16 +61,19 @@ class Tcn(AbstractModel):
         t_blocks = nn.Sequential()
         for i in range(n_blocks):
             n_inputs = n_channels if i == 0 else n_filters
-            dilation_size = 2 ** i
-            t_blocks.add_module(f"temporal_block_{i:d}", TemporalBlock(
-                n_inputs=n_inputs,
-                n_outputs=n_filters,
-                kernel_size=kernel_size,
-                stride=1,
-                dilation=dilation_size,
-                padding=(kernel_size - 1) * dilation_size,
-                drop_prob=drop_prob,
-            ))
+            dilation_size = 2**i
+            t_blocks.add_module(
+                f"temporal_block_{i:d}",
+                TemporalBlock(
+                    n_inputs=n_inputs,
+                    n_outputs=n_filters,
+                    kernel_size=kernel_size,
+                    stride=1,
+                    dilation=dilation_size,
+                    padding=(kernel_size - 1) * dilation_size,
+                    drop_prob=drop_prob,
+                ),
+            )
         self.temporal_blocks = t_blocks
         self.fc = nn.Linear(in_features=n_filters, out_features=n_classes)
         if add_log_softmax:
@@ -79,19 +82,19 @@ class Tcn(AbstractModel):
 
         self.min_len = 1
         for i in range(n_blocks):
-            dilation = 2 ** i
+            dilation = 2**i
             self.min_len += 2 * (kernel_size - 1) * dilation
 
         out_size = 1 + max(0, input_window_samples - self.min_len)
-        if last_layer_type == 'conv':
+        if last_layer_type == "conv":
             self.output_layer = nn.Conv1d(n_classes, n_classes, out_size, bias=True)
-        elif last_layer_type == 'linear':
+        elif last_layer_type == "linear":
             self.output_layer = nn.Linear(n_classes * out_size, n_classes)
-        elif last_layer_type == 'ave_pool':
+        elif last_layer_type == "ave_pool":
             self.output_layer = nn.AvgPool1d(out_size)
-        elif last_layer_type == 'max_pool':
+        elif last_layer_type == "max_pool":
             self.output_layer = nn.MaxPool1d(out_size)
-        if last_layer_type not in ('ave_pool', 'max_pool'):
+        if last_layer_type not in ("ave_pool", "max_pool"):
             init.normal_(self.output_layer.weight, 0, 0.01)
         self.eval()
 
@@ -108,12 +111,12 @@ class Tcn(AbstractModel):
 
         out_size = 1 + max(0, time_size - self.min_len)
         out = fc_out[:, -out_size:, :].transpose(1, 2)
-        if self.last_layer_type == 'linear':
+        if self.last_layer_type == "linear":
             out = out.reshape(batch_size, -1)
         out = self.output_layer(out)
-        if self.last_layer_type == 'linear':
+        if self.last_layer_type == "linear":
             out = out.unsqueeze(-1)
-        if hasattr(self, 'log_softmax'):
+        if hasattr(self, "log_softmax"):
             out = self.log_softmax(out)
         return self.squeeze(out[:, :, :, None])
 
@@ -121,16 +124,16 @@ class Tcn(AbstractModel):
 class TemporalBlock(nn.Module):
     def __init__(self, n_inputs, n_outputs, kernel_size, stride, dilation, padding, drop_prob):
         super().__init__()
-        self.conv1 = weight_norm(nn.Conv1d(
-            n_inputs, n_outputs, kernel_size,
-            stride=stride, padding=padding, dilation=dilation))
+        self.conv1 = weight_norm(
+            nn.Conv1d(n_inputs, n_outputs, kernel_size, stride=stride, padding=padding, dilation=dilation)
+        )
         self.chomp1 = Chomp1d(padding)
         self.relu1 = nn.ReLU()
         self.dropout1 = nn.Dropout2d(drop_prob)
 
-        self.conv2 = weight_norm(nn.Conv1d(
-            n_outputs, n_outputs, kernel_size,
-            stride=stride, padding=padding, dilation=dilation))
+        self.conv2 = weight_norm(
+            nn.Conv1d(n_outputs, n_outputs, kernel_size, stride=stride, padding=padding, dilation=dilation)
+        )
         self.chomp2 = Chomp1d(padding)
         self.relu2 = nn.ReLU()
         self.dropout2 = nn.Dropout2d(drop_prob)
@@ -162,7 +165,7 @@ class Chomp1d(nn.Module):
         self.chomp_size = chomp_size
 
     def extra_repr(self):
-        return f'chomp_size={self.chomp_size}'
+        return f"chomp_size={self.chomp_size}"
 
     def forward(self, x):
-        return x[:, :, :-self.chomp_size].contiguous()
+        return x[:, :, : -self.chomp_size].contiguous()

@@ -35,10 +35,7 @@ class TestCustomCrop:
 class TestChannelProcessing:
     def test_all_channels_get_eeg_ref_prefix(self, loader, synthetic_raw):
         loader._channel_processing(synthetic_raw)
-        assert all(
-            ch.startswith("EEG ") and ch.endswith("-REF")
-            for ch in synthetic_raw.ch_names
-        )
+        assert all(ch.startswith("EEG ") and ch.endswith("-REF") for ch in synthetic_raw.ch_names)
 
     def test_channel_count_unchanged(self, loader, synthetic_raw):
         original_count = len(synthetic_raw.ch_names)

@@ -7,6 +7,7 @@ def register(name: str):
     def decorator(cls):
         _registry[name] = cls
         return cls
+
     return decorator
 
 

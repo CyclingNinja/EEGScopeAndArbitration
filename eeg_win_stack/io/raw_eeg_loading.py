@@ -59,7 +59,7 @@ class RawEEGLoader:
             ds_tuab = TUHAbnormal(
                 self.tuab_path,
                 recording_ids=tuab_ids,
-                target_name='pathological',
+                target_name="pathological",
                 preload=self.preload,
             )
             datasets.extend(ds_tuab.datasets)
@@ -69,7 +69,7 @@ class RawEEGLoader:
             ds_tueg = TUH(
                 self.tueg_path,
                 recording_ids=tueg_ids,
-                target_name='pathological',
+                target_name="pathological",
                 preload=self.preload,
             )
             if self.use_tuab:
@@ -141,7 +141,7 @@ class RawEEGLoader:
             preprocessors.append(Preprocessor(lambda x: x * factor, apply_on_array=True))
         if bandpass_filter:
             preprocessors.append(
-                Preprocessor('filter', l_freq=low_cut_hz, h_freq=high_cut_hz)
+                Preprocessor("filter", l_freq=low_cut_hz, h_freq=high_cut_hz)
             )
         if standardization:
             preprocessors.append(
@@ -163,4 +163,4 @@ class RawEEGLoader:
         for i, dataset in enumerate(recordings.datasets):
             raw = dataset.raw
             fname = output_path / f"recording_{i:04d}.vhdr"
-            mne.export.export_raw(str(fname), raw, fmt='brainvision', overwrite=True)
+            mne.export.export_raw(str(fname), raw, fmt="brainvision", overwrite=True)

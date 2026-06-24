@@ -10,7 +10,7 @@ from .base import AbstractModel
 from .factory import register
 
 
-@register('hybridnet_1')
+@register("hybridnet_1")
 class HybridNet(AbstractModel):
     """Hybrid ConvNet model from Schirrmeister et al 2017.
 
@@ -28,38 +28,55 @@ class HybridNet(AbstractModel):
         super().__init__(n_channels, n_classes, input_window_samples)
 
         deep_model = Deep4Net(
-            n_channels, n_classes,
-            n_filters_time=20, n_filters_spat=30,
-            n_filters_2=40, n_filters_3=50, n_filters_4=60,
+            n_channels,
+            n_classes,
+            n_filters_time=20,
+            n_filters_spat=30,
+            n_filters_2=40,
+            n_filters_3=50,
+            n_filters_4=60,
             input_window_samples=input_window_samples,
             final_conv_length=2,
         )
         shallow_model = ShallowFBCSPNet(
-            n_channels, n_classes,
+            n_channels,
+            n_classes,
             input_window_samples=input_window_samples,
-            n_filters_time=30, n_filters_spat=40,
-            filter_time_length=28, final_conv_length=29,
+            n_filters_time=30,
+            n_filters_spat=40,
+            filter_time_length=28,
+            final_conv_length=29,
         )
 
         reduced_deep_model = nn.Sequential()
         for name, module in deep_model.named_children():
-            if name == 'final_layer':
+            if name == "final_layer":
                 conv = module.conv_classifier
-                reduced_deep_model.add_module('deep_final_conv', nn.Conv2d(
-                    conv.in_channels, 60,
-                    kernel_size=conv.kernel_size, stride=conv.stride,
-                ))
+                reduced_deep_model.add_module(
+                    "deep_final_conv",
+                    nn.Conv2d(
+                        conv.in_channels,
+                        60,
+                        kernel_size=conv.kernel_size,
+                        stride=conv.stride,
+                    ),
+                )
                 break
             reduced_deep_model.add_module(name, module)
 
         reduced_shallow_model = nn.Sequential()
         for name, module in shallow_model.named_children():
-            if name == 'final_layer':
+            if name == "final_layer":
                 conv = module.conv_classifier
-                reduced_shallow_model.add_module('shallow_final_conv', nn.Conv2d(
-                    conv.in_channels, 40,
-                    kernel_size=conv.kernel_size, stride=conv.stride,
-                ))
+                reduced_shallow_model.add_module(
+                    "shallow_final_conv",
+                    nn.Conv2d(
+                        conv.in_channels,
+                        40,
+                        kernel_size=conv.kernel_size,
+                        stride=conv.stride,
+                    ),
+                )
                 break
             reduced_shallow_model.add_module(name, module)
 
@@ -68,8 +85,10 @@ class HybridNet(AbstractModel):
         self.reduced_deep_model = reduced_deep_model
         self.reduced_shallow_model = reduced_shallow_model
         self.final_conv = nn.Conv2d(
-            100, n_classes,
-            kernel_size=(input_window_samples - 521, 1), stride=1,
+            100,
+            n_classes,
+            kernel_size=(input_window_samples - 521, 1),
+            stride=1,
         )
         init.normal_(self.final_conv.weight, 0, 0.01)
 
