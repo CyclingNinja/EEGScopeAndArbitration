@@ -7,18 +7,18 @@ n_jobs = 8
 [data]
 use_tuab = true
 use_tueg = false
-n_tuab = 20
+n_tuab = 25
 n_tueg = 50
 n_load = 100
-preload = true
-tuab_path = "/home/sam/Code/EEGScopeAndArbitration/data/TUAB"
+preload = false
+tuab_path = "E:/TUAB"
 tueg_path = ""
-save_recordings = false
-save_recordings_path = "/home/sam/Code/EEGScopeAndArbitration/data/target/saved_recordings"
+save_recordings = true
+save_recordings_path = "./target/saved_recordings"
 save_windows = true
-save_windows_path = "./data/saved_windows"
+save_windows_path = "./target/saved_windows"
 load_saved_recordings = false
-load_saved_windows = false
+load_saved_windows = true
 relabel_datasets = ""
 relabel_labels = ""
 
@@ -67,8 +67,8 @@ es_threshold = 0.001
 checkpoint_dir = ""
 
 [output]
-log_path = "./data/target/result.csv"
-saved_models_path = "./data/saved_models/"
+log_path = "./target/result.csv"
+saved_models_path = "./target/saved_models"
 plot_result = false
 train_whole_dataset_again = true
 load_pretrained_model = false

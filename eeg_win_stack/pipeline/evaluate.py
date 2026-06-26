@@ -24,7 +24,7 @@ def main():
     mne.set_log_level(run_cfg["mne_log_level"])
 
     windows_ds = load_concat_dataset(
-        path="data/saved_windows",
+        path=cfg["data"]["save_windows_path"],
         preload=False,
         target_name="pathological",
         n_jobs=1,
