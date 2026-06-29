@@ -1,0 +1,232 @@
+schema: '2.0'
+stages:
+  preprocess:
+    cmd: python -m eeg_win_stack.pipeline.preprocess
+    params:
+      eeg_win_stack/config/params.toml:
+        data:
+          use_tuab: true
+          use_tueg: false
+          n_tuab: 2993
+          n_tueg: 50
+          n_load: 100
+          preload: false
+          tuab_path: E:/TUAB
+          tueg_path: ''
+          save_recordings: true
+          save_recordings_path: ./target/saved_recordings
+          save_windows: true
+          save_windows_path: ./target/saved_windows
+          load_saved_recordings: false
+          load_saved_windows: true
+          relabel_datasets: ''
+          relabel_labels: ''
+        preprocessing:
+          bandpass_filter: false
+          low_cut_hz: 4.0
+          high_cut_hz: 38.0
+          standardization: true
+          factor_new: 0.001
+          init_block_size: 1000
+          max_abs_val: 800
+          sampling_freq: 100
+        run:
+          mne_log_level: WARNING
+          n_repetitions: 1
+          random_state: 87
+          n_jobs: 8
+        windowing:
+          window_len_s: 60
+          multiple: 0
+          tmin: 300
+          sec_to_cut: 60
+          duration_recording_sec: 1200
+          channels:
+          - EEG FP1-REF
+          - EEG FP2-REF
+          - EEG F3-REF
+          - EEG F4-REF
+          - EEG C3-REF
+          - EEG C4-REF
+          - EEG P3-REF
+          - EEG P4-REF
+          - EEG O1-REF
+          - EEG O2-REF
+          - EEG F7-REF
+          - EEG F8-REF
+          - EEG T3-REF
+          - EEG T4-REF
+          - EEG T5-REF
+          - EEG T6-REF
+          - EEG FZ-REF
+          - EEG PZ-REF
+          - EEG CZ-REF
+    outs:
+    - path: target/saved_windows
+      hash: md5
+      md5: 77a11aff4e217b11dda0b09802406dee.dir
+      size: 26358566777
+      nfiles: 11972
+  train:
+    cmd: python -m eeg_win_stack.pipeline.train
+    deps:
+    - path: ./target/saved_windows
+      hash: md5
+      md5: 77a11aff4e217b11dda0b09802406dee.dir
+      size: 26358566777
+      nfiles: 11972
+    params:
+      eeg_win_stack/config/params.toml:
+        model:
+          name: deep4
+          final_conv_length: auto
+          dropout: 0.1
+          deep4:
+            activation: elu
+            batch_norm_alpha: 0.1
+            n_filters_time: 25
+            n_filters_spat: 25
+            filter_time_length: 10
+            pool_time_length: 3
+            pool_time_stride: 3
+            n_filters_2: 50
+            filter_length_2: 10
+            n_filters_3: 100
+            filter_length_3: 10
+            n_filters_4: 200
+            filter_length_4: 10
+            first_pool_mode: max
+            later_pool_mode: max
+            double_time_convs: false
+            split_first_layer: true
+            batch_norm: true
+            stride_before_pool: false
+          tcn:
+            kernel_size: 11
+            n_blocks: 5
+            n_filters: 55
+            add_log_softmax: true
+            last_layer_type: max_pool
+            dropout: 0.05270154233150525
+          shallow:
+            n_filters_time: 40
+            filter_time_length: 25
+            n_filters_spat: 40
+            pool_time_length: 75
+            pool_time_stride: 15
+            split_first_layer: true
+            batch_norm: true
+            batch_norm_alpha: 0.1
+          vit:
+            patch_size: 10
+            dim: 64
+            depth: 6
+            heads: 16
+            mlp_dim: 64
+            emb_dropout: 0.1
+        run:
+          mne_log_level: WARNING
+          n_repetitions: 1
+          random_state: 87
+          n_jobs: 8
+        split:
+          split_way: proportion
+          train_size: 0.8
+          valid_size: 0.1
+          test_size: 0.1
+          shuffle: true
+        training:
+          learning_rate: 0.001
+          weight_decay: 0.0005
+          batch_size: 1
+          n_epochs: 30
+          n_classes: 2
+          test_on_eval: true
+          earlystopping: true
+          es_patience: 10
+          es_threshold: 0.001
+          checkpoint_dir: ''
+    outs:
+    - path: target/saved_models
+      hash: md5
+      md5: 4cd66b41f20c9aa95a97911ad731834d.dir
+      size: 1224994
+      nfiles: 1
+  evaluate:
+    cmd: python -m eeg_win_stack.pipeline.evaluate
+    deps:
+    - path: .\target\saved_models
+      hash: md5
+      md5: 4cd66b41f20c9aa95a97911ad731834d.dir
+      size: 1224994
+      nfiles: 1
+    - path: .\target\saved_windows
+      hash: md5
+      md5: 77a11aff4e217b11dda0b09802406dee.dir
+      size: 26358566777
+      nfiles: 11972
+    params:
+      eeg_win_stack/config/params.toml:
+        model:
+          name: deep4
+          final_conv_length: auto
+          dropout: 0.1
+          deep4:
+            activation: elu
+            batch_norm_alpha: 0.1
+            n_filters_time: 25
+            n_filters_spat: 25
+            filter_time_length: 10
+            pool_time_length: 3
+            pool_time_stride: 3
+            n_filters_2: 50
+            filter_length_2: 10
+            n_filters_3: 100
+            filter_length_3: 10
+            n_filters_4: 200
+            filter_length_4: 10
+            first_pool_mode: max
+            later_pool_mode: max
+            double_time_convs: false
+            split_first_layer: true
+            batch_norm: true
+            stride_before_pool: false
+          tcn:
+            kernel_size: 11
+            n_blocks: 5
+            n_filters: 55
+            add_log_softmax: true
+            last_layer_type: max_pool
+            dropout: 0.05270154233150525
+          shallow:
+            n_filters_time: 40
+            filter_time_length: 25
+            n_filters_spat: 40
+            pool_time_length: 75
+            pool_time_stride: 15
+            split_first_layer: true
+            batch_norm: true
+            batch_norm_alpha: 0.1
+          vit:
+            patch_size: 10
+            dim: 64
+            depth: 6
+            heads: 16
+            mlp_dim: 64
+            emb_dropout: 0.1
+        run:
+          mne_log_level: WARNING
+          n_repetitions: 1
+          random_state: 87
+          n_jobs: 8
+        split:
+          split_way: proportion
+          train_size: 0.8
+          valid_size: 0.1
+          test_size: 0.1
+          shuffle: true
+    outs:
+    - path: metrics.json
+      hash: md5
+      md5: 34b5de297604b993f0c4b013fcbb1d71
+      size: 136

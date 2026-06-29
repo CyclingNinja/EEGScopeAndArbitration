@@ -3,11 +3,12 @@ mne_log_level = "WARNING"
 n_repetitions = 1
 random_state = 87
 n_jobs = 8
+azure_artifact_root = "wasbs://mlflow-artifacts@medshedeegwinstack.blob.core.windows.net/experiments"
 
 [data]
 use_tuab = true
 use_tueg = false
-n_tuab = 25
+n_tuab = 2993
 n_tueg = 50
 n_load = 100
 preload = false
@@ -48,7 +49,7 @@ channels = [
 ]
 
 [split]
-split_way = "proportion"
+split_way = "folder"
 train_size = 0.8
 valid_size = 0.1
 test_size = 0.1
@@ -57,12 +58,12 @@ shuffle = true
 [training]
 learning_rate = 0.001
 weight_decay = 0.0005
-batch_size = 1
-n_epochs = 30
+batch_size = 8
+n_epochs = 25
 n_classes = 2
 test_on_eval = true
 earlystopping = true
-es_patience = 10
+es_patience = 8
 es_threshold = 0.001
 checkpoint_dir = ""
 

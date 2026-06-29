@@ -1,0 +1,7 @@
+[core]
+    remote = azure
+    autostage = true
+['remote "medshed"']
+    url = azure://medshedeegwinstack/dvc-cache
+['remote "azure"']
+    url = azure://dvc-cache/eeg-pipeline

@@ -75,6 +75,10 @@ def main():
     Path("metrics.json").write_text(json.dumps(metrics, indent=2))
 
     mlflow.set_tracking_uri("mlruns")
+    mlflow.set_experiment(
+        experiment_name="eeg_win_stack",
+        artifact_location=cfg["run"]["azure_artifact_root"],
+    )
     with mlflow.start_run():
         mlflow.log_params(
             {
