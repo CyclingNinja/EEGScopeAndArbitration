@@ -6,6 +6,24 @@ This guide sets up Azure Blob Storage as:
 2. An **MLflow artifact store** — so model checkpoints and artifacts logged during `evaluate` land in Azure rather than the local `mlruns/` directory.
 
 ---
+                                                                            
+## Quick Reference
+                                                                            
+Once everything has been configured and install basic operations are as follows:
+
+```bash
+# One-time setup on a new machine after cloning
+export AZURE_STORAGE_CONNECTION_STRING="..."
+dvc pull                        # fetch cached data from Azure
+                                                                            
+# After a pipeline run
+dvc repro
+dvc push                        # push new outputs to Azure
+git add dvc.lock metrics.json && git commit -m "Pipeline run: <description>"
+                                                                            
+# View MLflow runs (metadata local, artifacts streamed from Azure)
+mlflow ui---
+```
 
 ## Part 1 — Azure Portal: Create the Storage Account
 
@@ -290,20 +308,20 @@ Files **not** to commit (should already be git-ignored):
 | `data/` | Large binary data managed by DVC |
 | `mlruns/` | Local experiment tracking DB |
 
----
 
-## Quick Reference
 
-```bash
-# One-time setup on a new machine after cloning
-export AZURE_STORAGE_CONNECTION_STRING="..."
-dvc pull                        # fetch cached data from Azure
 
-# After a pipeline run
-dvc repro
-dvc push                        # push new outputs to Azure
-git add dvc.lock metrics.json && git commit -m "Pipeline run: <description>"
 
-# View MLflow runs (metadata local, artifacts streamed from Azure)
-mlflow ui
-```
+
+
+
+
+
+
+
+
+
+
+
+
+
