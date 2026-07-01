@@ -1,9 +1,5 @@
 import csv
-import pandas as pd
 import torch
-import torchvision
-from torchvision import transforms
-from PIL import Image
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 from torch import nn
@@ -13,7 +9,6 @@ import numpy as np
 import copy
 from sklearn.model_selection import train_test_split
 from eeg_win_stack.tools.paths import findall
-from eeg_win_stack.tools.metrics import find_all_zero
 from itertools import product
 
 N_REPETITION = [5]
@@ -206,7 +201,6 @@ for (
     if xgboost:  # Use xgboost as the second stage model
         import xgboost as xgb
         from sklearn.metrics import accuracy_score
-        import matplotlib.pyplot as plt
 
         train_len = int(len(labels) * 0.8)
 
@@ -335,7 +329,7 @@ for (
                     super().__init__()
                     self.adap_pool = adap_pool
                     if adap_pool:
-                        self.pooling = nn.AdaptiveAvgPool1d((10))
+                        self.pooling = nn.AdaptiveAvgPool1d(10)
                         self.classifer = nn.Linear(10, 2)
                     else:
                         # self.classifer=nn.Sequential(
@@ -371,14 +365,14 @@ for (
                     self.hidden_layers = hidden_layers
                     if self.hidden_layers > 0:
                         self.hidden = nn.Sequential()
-                        self.hidden.add_module("hidden{:d}".format(0), nn.Linear(self.length, self.hidden_length))
-                        self.hidden.add_module("activation{:d}".format(0), nn.ReLU())
+                        self.hidden.add_module(f"hidden{0:d}", nn.Linear(self.length, self.hidden_length))
+                        self.hidden.add_module(f"activation{0:d}", nn.ReLU())
                         self.hidden_layers = self.hidden_layers - 1
                         for i in range(self.hidden_layers):
                             self.hidden.add_module(
-                                "hidden{:d}".format(i + 1), nn.Linear(self.hidden_length, self.hidden_length)
+                                f"hidden{i + 1:d}", nn.Linear(self.hidden_length, self.hidden_length)
                             )
-                            self.hidden.add_module("activation{:d}".format(i + 1), nn.ReLU())
+                            self.hidden.add_module(f"activation{i + 1:d}", nn.ReLU())
 
                         for subhidden in self.hidden:
                             if hasattr(subhidden, "weight"):

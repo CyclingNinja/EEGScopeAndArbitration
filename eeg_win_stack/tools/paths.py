@@ -8,6 +8,26 @@ from typing import Any
 
 
 def findall(items: list[Any], value: Any) -> list[int]:
+    """
+    Find all indices of a specified value in a list.
+
+    This function searches through the given list and identifies all the indices
+    where the specified value is found. It returns a list of these indices. If the
+    value does not exist in the list, an empty list is returned.
+
+    Parameters
+    ----------
+    items : list[Any]
+        The list to search for the given value.
+    value : Any
+        The value to look for in the list.
+
+    Returns
+    -------
+    list[int]
+        A list of indices where the specified value is found in the input list.
+        Returns an empty list if the value is not present.
+    """
     start = 0
     res = []
     while value in items[start:]:

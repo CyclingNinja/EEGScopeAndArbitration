@@ -14,7 +14,7 @@ from eeg_win_stack.tools.filters import (
     remove_tuab_from_dataset,
     select_by_channel,
     select_by_duration,
-    select_labeled,
+    exclude_by_undefined_pathology,
 )
 
 
@@ -94,7 +94,7 @@ class RawEEGLoader:
             for label_path, dataset_folder in zip(relabel_label, relabel_dataset):
                 recordings.set_description(relabel(recordings, label_path, dataset_folder), overwrite=True)
 
-        recordings = select_labeled(recordings)
+        recordings = exclude_by_undefined_pathology(recordings)
         return select_by_channel(recordings, channels)
 
     def preprocess_recordings(
