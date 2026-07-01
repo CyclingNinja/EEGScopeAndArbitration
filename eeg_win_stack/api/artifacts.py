@@ -81,7 +81,7 @@ class ModelArtifact:
         output_dir,
         training_config: dict | None = None,
         extra: dict | None = None,
-    ) -> "ModelArtifact":
+    ) -> ModelArtifact:
         """Persist a fitted classifier as a weights + manifest pair.
 
         Parameters
@@ -135,7 +135,7 @@ class ModelArtifact:
         )
 
     @classmethod
-    def load(cls, model_id: str, *, models_dir) -> "ModelArtifact":
+    def load(cls, model_id: str, *, models_dir) -> ModelArtifact:
         """Load an artifact by id from a directory of saved models.
 
         Parameters

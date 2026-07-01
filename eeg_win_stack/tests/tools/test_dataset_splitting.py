@@ -281,30 +281,30 @@ class TestSplitTuabTueg:
 # remove_attribute hook
 # --------------------------------------------------------------------------- #
 class TestRemoveAttribute:
-    def test_remove_same_invoked_and_substitutes_train_set(self, monkeypatch):
+    def test_drop_duplicates_invoked_and_substitutes_train_set(self, monkeypatch):
         replacement = make_ds(["filtered/x/y.edf"])
         calls = {}
 
-        def fake_remove_same(test_set, train_set, attribute):
+        def fake_drop_duplicates(test_set, train_set, attribute):
             calls["args"] = (test_set, train_set, attribute)
             return replacement
 
-        monkeypatch.setattr(dataset_splitting, "remove_same", fake_remove_same)
+        monkeypatch.setattr(dataset_splitting, "drop_duplicates", fake_drop_duplicates)
 
         paths = [f"p{i}/s/rec.edf" for i in range(8)]
         splitter = DatasetSplitter(make_ds(paths), 0.75, 0.125, 0.125, 42, remove_attribute="path")
         train_set, _, test_set = splitter.split_data("proportion")
 
         assert train_set is replacement
-        # remove_same(test_set, train_set, attribute)
+        # drop_duplicates(test_set, train_set, attribute)
         assert calls["args"][0] is test_set
         assert calls["args"][2] == "path"
 
-    def test_remove_same_not_called_when_attribute_none(self, monkeypatch):
+    def test_drop_duplicates_not_called_when_attribute_none(self, monkeypatch):
         def boom(*args, **kwargs):
-            raise AssertionError("remove_same should not be called when remove_attribute is None")
+            raise AssertionError("drop_duplicates should not be called when remove_attribute is None")
 
-        monkeypatch.setattr(dataset_splitting, "remove_same", boom)
+        monkeypatch.setattr(dataset_splitting, "drop_duplicates", boom)
 
         paths = [f"p{i}/s/rec.edf" for i in range(8)]
         splitter = DatasetSplitter(make_ds(paths), 0.75, 0.125, 0.125, 42)

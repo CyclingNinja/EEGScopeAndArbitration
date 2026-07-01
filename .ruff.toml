@@ -5,6 +5,7 @@ exclude = [
   "__pycache__",
   "build",
   "eeg_win_stack/version.py",
+  "final_decision.py"
 ]
 
 [lint]

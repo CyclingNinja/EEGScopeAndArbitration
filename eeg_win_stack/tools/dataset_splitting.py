@@ -14,7 +14,7 @@ import numpy as np
 from braindecode.datasets import BaseConcatDataset
 from sklearn.model_selection import train_test_split
 
-from eeg_win_stack.tools.filters import remove_same
+from eeg_win_stack.tools.filters import drop_duplicates
 from eeg_win_stack.tools.paths import findall
 
 
@@ -61,7 +61,7 @@ class DatasetSplitter:
 
     def _remove_attribute_check(self, train_set, test_set):
         if self.remove_attribute:
-            return remove_same(test_set, train_set, self.remove_attribute)
+            return drop_duplicates(test_set, train_set, self.remove_attribute)
         return train_set
 
     def _split_indices_by_group_labels(self, groups):

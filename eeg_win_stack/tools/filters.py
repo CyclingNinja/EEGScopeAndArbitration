@@ -10,6 +10,21 @@ from eeg_win_stack.tools.paths import get_full_filelist
 
 
 def remove_tuab_from_dataset(ds, tuab_loc):
+    """
+    Remove the tuab recordings from the whole dataset
+    Retrieves all fileneames from the TUAB directory to filter out
+
+    Parameters
+    ----------
+    ds : DatasetBuilder
+    tuab_loc : str
+        path to the tuab files
+
+    Returns
+    -------
+    DatasetBuilder
+
+    """
     tuab_list = get_full_filelist(tuab_loc, ".edf")
     tuab_list = [Path(path).name for path in tuab_list]
 
@@ -23,7 +38,22 @@ def remove_tuab_from_dataset(ds, tuab_loc):
     return splits["0"]
 
 
-def remove_same(ds1, ds2, attribute):
+def drop_duplicates(ds1, ds2, attribute):
+    """
+    Drops the duplicates from two datasets.
+    Parameters
+    ----------
+    ds1 : DatasetBuilder instance
+        typically
+    ds2 : DatasetBuilder instance
+    attribute : str
+        attribute to remove by, valid attrs 'sessions' 'patients' or None
+
+    Returns
+    -------
+    DatasetBuilder instance
+
+    """
     remove_num = 0
     if attribute == "file_name":
         loc = -1
@@ -54,27 +84,55 @@ def remove_same(ds1, ds2, attribute):
     return splits["0"]
 
 
-def select_by_duration(ds, tmin=0, tmax=None):
+def select_by_duration(dataset, tmin=0, tmax=None):
+    """
+
+    Parameters
+    ----------
+    dataset : DatasetBuilder instance
+    tmin : int
+        min duration to select recordings above
+    tmax : int
+        max duration to select recordings below
+
+    Returns
+    -------
+    DatasetBuilder instance
+
+    """
     if tmax is None:
         tmax = np.inf
 
     split_ids = []
-    for d_i, d in enumerate(ds.datasets):
+    for d_i, d in enumerate(dataset.datasets):
         duration = d.raw.n_times / d.raw.info["sfreq"]
         if tmin <= duration <= tmax:
             split_ids.append(d_i)
 
-    splits = ds.split(split_ids)
+    splits = dataset.split(split_ids)
     return splits["0"]
 
 
-def select_labeled(ds):
+def exclude_by_undefined_pathology(dataset):
+    """
+    Selects only the recordings that have been confirmed as
+    pathological True or False
+    Parameters
+    ----------
+    dataset : DatasetBuilder instance
+
+    Returns
+    -------
+
+    """
     split_ids = []
-    for d_i, d in enumerate(ds.description["pathological"]):
+    for d_i, d in enumerate(dataset.description["pathological"]):
+        print(d_i)
+        print(d)
         if d is True or d is False:
             split_ids.append(d_i)
 
-    splits = ds.split(split_ids)
+    splits = dataset.split(split_ids)
     return splits["0"]
 
 
@@ -91,6 +149,18 @@ def exclude_by_name(ds, names):
 
 
 def select_by_channel(ds, channels):
+    """
+    Select recordings based on a a list of channels
+    Parameters
+    ----------
+    ds : DatasetBuilder
+    channels : list[str]
+        List of valid channel names, pass [] for all
+
+    Returns
+    -------
+
+    """
     split_ids = []
     for d_i, d in enumerate(ds.datasets):
         include = True
