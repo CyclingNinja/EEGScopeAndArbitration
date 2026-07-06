@@ -4,6 +4,7 @@ n_repetitions = 1
 random_state = 87
 n_jobs = 8
 azure_artifact_root = "wasbs://mlflow-artifacts@medshedeegwinstack.blob.core.windows.net/experiments"
+experiment_name = "eeg_win_stack"
 
 [data]
 use_tuab = true

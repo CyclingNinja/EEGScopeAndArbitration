@@ -75,10 +75,17 @@ def main():
     Path("metrics.json").write_text(json.dumps(metrics, indent=2))
 
     mlflow.set_tracking_uri("mlruns")
-    mlflow.set_experiment(
-        experiment_name="eeg_win_stack",
-        artifact_location=cfg["run"]["azure_artifact_root"],
-    )
+    # set_experiment auto-creates the experiment on the fly if it is missing, but
+    # cannot attach a custom artifact_location -- that is only honoured at creation
+    # time via create_experiment. So create it explicitly the first time to pin the
+    # configured artifact root, then just select it thereafter.
+    experiment_name = cfg["run"]["experiment_name"]
+    if mlflow.get_experiment_by_name(experiment_name) is None:
+        mlflow.create_experiment(
+            experiment_name,
+            artifact_location=cfg["run"]["azure_artifact_root"],
+        )
+    mlflow.set_experiment(experiment_name)
     with mlflow.start_run():
         mlflow.log_params(
             {
