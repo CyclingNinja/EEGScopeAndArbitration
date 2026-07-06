@@ -44,9 +44,7 @@ class LocalBackend(Backend):
                 "model_path": str(result.model_path),
                 "manifest_path": str(result.manifest_path),
             }
-        raise NotImplementedError(
-            f"LocalBackend does not yet support job kind '{job.kind.value}'"
-        )
+        raise NotImplementedError(f"LocalBackend does not yet support job kind '{job.kind.value}'")
 
     def status(self, handle: JobHandle) -> JobStatus:
         """Return ``COMPLETED`` once the job has run, else ``PENDING``."""

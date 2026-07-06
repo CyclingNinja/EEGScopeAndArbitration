@@ -163,9 +163,7 @@ class ModelArtifact:
         manifest = json.loads(manifest_path.read_text())
         model_path = out / manifest.get("weights_file", f"{model_id}.pt")
         if not model_path.exists():
-            raise FileNotFoundError(
-                f"Manifest '{manifest_path}' references missing weights: {model_path}"
-            )
+            raise FileNotFoundError(f"Manifest '{manifest_path}' references missing weights: {model_path}")
         return cls(
             model_id=model_id,
             model_path=model_path,

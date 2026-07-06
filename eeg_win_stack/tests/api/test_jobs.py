@@ -64,18 +64,14 @@ EXPECTED_BUILD_KWARGS = {
 
 class TestModelBuildKwargs:
     def test_applies_only_matching_subsection(self, config):
-        kwargs = _model_build_kwargs(
-            config["model"], n_classes=2, n_channels=19, window_len_samples=6000
-        )
+        kwargs = _model_build_kwargs(config["model"], n_classes=2, n_channels=19, window_len_samples=6000)
         assert kwargs == EXPECTED_BUILD_KWARGS
         # shallow's n_filters_time (40) must not leak in
         assert kwargs["n_filters_time"] == 25
 
     def test_no_matching_subsection_uses_base_only(self, config):
         config["model"]["name"] = "tcn"  # no [model.tcn] in this config
-        kwargs = _model_build_kwargs(
-            config["model"], n_classes=2, n_channels=19, window_len_samples=6000
-        )
+        kwargs = _model_build_kwargs(config["model"], n_classes=2, n_channels=19, window_len_samples=6000)
         assert kwargs == {
             "n_channels": 19,
             "n_classes": 2,
@@ -103,13 +99,14 @@ class TestTrainingConfigMapping:
 @pytest.fixture
 def mocks(config):
     """Patch every heavy collaborator of run_training and wire return values."""
-    with patch("eeg_win_stack.api.jobs.torch.cuda.is_available", return_value=False), \
-         patch("eeg_win_stack.api.jobs.load_concat_dataset") as load, \
-         patch("eeg_win_stack.api.jobs.DatasetSplitter") as splitter, \
-         patch("eeg_win_stack.api.jobs.ModelFactory") as factory, \
-         patch("eeg_win_stack.api.jobs.Trainer") as trainer, \
-         patch("eeg_win_stack.api.jobs.ModelArtifact") as artifact:
-
+    with (
+        patch("eeg_win_stack.api.jobs.torch.cuda.is_available", return_value=False),
+        patch("eeg_win_stack.api.jobs.load_concat_dataset") as load,
+        patch("eeg_win_stack.api.jobs.DatasetSplitter") as splitter,
+        patch("eeg_win_stack.api.jobs.ModelFactory") as factory,
+        patch("eeg_win_stack.api.jobs.Trainer") as trainer,
+        patch("eeg_win_stack.api.jobs.ModelArtifact") as artifact,
+    ):
         windows_ds = MagicMock(name="windows_ds")
         windows_ds.__getitem__.return_value.__getitem__.return_value.shape = (19, 6000)
         load.return_value = windows_ds
@@ -133,9 +130,17 @@ def mocks(config):
         artifact.save.return_value = art
 
         yield SimpleNamespace(
-            load=load, splitter=splitter, factory=factory, trainer=trainer,
-            artifact=artifact, windows_ds=windows_ds, train_set=train_set,
-            valid_set=valid_set, model=model, classifier=classifier, art=art,
+            load=load,
+            splitter=splitter,
+            factory=factory,
+            trainer=trainer,
+            artifact=artifact,
+            windows_ds=windows_ds,
+            train_set=train_set,
+            valid_set=valid_set,
+            model=model,
+            classifier=classifier,
+            art=art,
         )
 
 
@@ -159,9 +164,7 @@ class TestRunTraining:
         args, kwargs = mocks.splitter.call_args
         assert args == (mocks.windows_ds, 0.8, 0.1, 0.1, 87)
         assert kwargs == {"shuffle": True, "remove_attribute": None}
-        mocks.splitter.return_value.split_data.assert_called_once_with(
-            "train_on_tuab_tueg_test_on_tueg"
-        )
+        mocks.splitter.return_value.split_data.assert_called_once_with("train_on_tuab_tueg_test_on_tueg")
 
     def test_model_built_with_selected_kwargs(self, config, mocks):
         run_training(config, windows_path="w", output_dir="out")
@@ -175,9 +178,7 @@ class TestRunTraining:
         assert isinstance(training_config, TrainingConfig)
         assert training_config.n_epochs == 30
         assert training_config.early_stopping is True
-        mocks.trainer.return_value.fit.assert_called_once_with(
-            mocks.model, mocks.train_set, mocks.valid_set
-        )
+        mocks.trainer.return_value.fit.assert_called_once_with(mocks.model, mocks.train_set, mocks.valid_set)
 
     def test_artifact_saved_with_classifier_and_recipe(self, config, mocks):
         run_training(config, windows_path="w", output_dir="out")

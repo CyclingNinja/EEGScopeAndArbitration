@@ -16,7 +16,7 @@ from eeg_win_stack.tools.filters import (
     select_by_duration,
     select_by_channel,
     exclude_by_undefined_pathology,
-    exclude_by_name
+    exclude_by_name,
 )
 
 
@@ -95,9 +95,9 @@ def _mock_dataset():
 
     sub_datasets = []
     for n_times, ch_names in (
-        (256 * 600, ["C3", "C4", "Cz"]),   # normal:   600 s, has C4
-        (256 * 45, ["C3", "C4", "P3"]),    # abnormal:  45 s, has C4
-        (256 * 30, ["C3", "Fz"]),          # TUEG:      30 s, missing C4
+        (256 * 600, ["C3", "C4", "Cz"]),  # normal:   600 s, has C4
+        (256 * 45, ["C3", "C4", "P3"]),  # abnormal:  45 s, has C4
+        (256 * 30, ["C3", "Fz"]),  # TUEG:      30 s, missing C4
     ):
         sub = MagicMock()
         sub.raw.n_times = n_times
@@ -208,5 +208,3 @@ def test_select_by_channel_no_resultset(mock_dataset):
 def test_select_by_channel_no_channels(mock_dataset):
     dataset = select_by_channel(mock_dataset, [])
     assert len(dataset) == 3
-
-

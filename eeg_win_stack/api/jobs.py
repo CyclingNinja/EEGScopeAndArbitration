@@ -44,9 +44,7 @@ class TrainResult:
     artifact: ModelArtifact
 
 
-def _model_build_kwargs(
-    model_cfg: dict, *, n_classes: int, n_channels: int, window_len_samples: int
-) -> dict:
+def _model_build_kwargs(model_cfg: dict, *, n_classes: int, n_channels: int, window_len_samples: int) -> dict:
     """Assemble the kwargs for :meth:`ModelFactory.create` from the ``[model]`` config.
 
     Only the subsection matching the model name is applied (e.g. ``[model.deep4]``
