@@ -17,6 +17,7 @@ def make_tree(tmp_path):
     Contents are irrelevant to the path helpers, which only inspect names,
     suffixes, and directory structure.
     """
+
     def _make(rel_paths):
         created = []
         for rel in rel_paths:

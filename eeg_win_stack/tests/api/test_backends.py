@@ -100,9 +100,7 @@ class TestLocalBackendTrain:
 
     @patch("eeg_win_stack.api.backends.local.run_training")
     def test_model_id_none_when_not_in_options(self, mock_run):
-        mock_run.return_value = SimpleNamespace(
-            model_id="auto", model_path="/m/a.pt", manifest_path="/m/a.json"
-        )
+        mock_run.return_value = SimpleNamespace(model_id="auto", model_path="/m/a.pt", manifest_path="/m/a.json")
         job = Job(kind=JobKind.TRAIN, config={}, windows_path="w", output_dir="o")
         LocalBackend().submit(job)
         assert mock_run.call_args.kwargs["model_id"] is None
