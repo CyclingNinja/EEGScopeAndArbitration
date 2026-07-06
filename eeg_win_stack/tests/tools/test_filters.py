@@ -152,7 +152,7 @@ def test_drop_duplicates_identical_removes_all():
 
 def test_drop_duplicates_unknown_attribute_raises():
     ds = _paths_dataset([_A])
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="Unknown attribute: nonsense"):
         drop_duplicates(ds, ds, "nonsense")
 
 
