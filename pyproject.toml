@@ -37,6 +37,12 @@ py-modules = [
 where = ["."]
 include = ["eeg_win_stack*"]
 
+# params.toml is loaded at runtime via Path(__file__).parent, so it must ship
+# inside the wheel/sdist — otherwise load() breaks for any installed consumer
+# (DVC pipeline, API, remote backends), even though it works from the source tree.
+[tool.setuptools.package-data]
+"eeg_win_stack.config" = ["params.toml"]
+
 [tool.pytest.ini_options]
 filterwarnings = [
   # matplotlib (transitively imported via braindecode/skorch) calls pyparsing
