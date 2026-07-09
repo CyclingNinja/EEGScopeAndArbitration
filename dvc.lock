@@ -35,6 +35,9 @@ stages:
           n_repetitions: 1
           random_state: 87
           n_jobs: 8
+          azure_artifact_root: 
+            wasbs://mlflow-artifacts@medshedeegwinstack.blob.core.windows.net/experiments
+          experiment_name: eeg_win_stack
         windowing:
           window_len_s: 60
           multiple: 0
@@ -129,8 +132,11 @@ stages:
           n_repetitions: 1
           random_state: 87
           n_jobs: 8
+          azure_artifact_root: 
+            wasbs://mlflow-artifacts@medshedeegwinstack.blob.core.windows.net/experiments
+          experiment_name: eeg_win_stack
         split:
-          split_way: proportion
+          split_way: folder
           train_size: 0.8
           valid_size: 0.1
           test_size: 0.1
@@ -138,18 +144,18 @@ stages:
         training:
           learning_rate: 0.001
           weight_decay: 0.0005
-          batch_size: 1
-          n_epochs: 30
+          batch_size: 8
+          n_epochs: 25
           n_classes: 2
           test_on_eval: true
           earlystopping: true
-          es_patience: 10
+          es_patience: 8
           es_threshold: 0.001
           checkpoint_dir: ''
     outs:
     - path: target/saved_models
       hash: md5
-      md5: 4cd66b41f20c9aa95a97911ad731834d.dir
+      md5: e0a0e4f6047a024c7fb5bf826458f3f5.dir
       size: 1224994
       nfiles: 1
   evaluate:
@@ -157,7 +163,7 @@ stages:
     deps:
     - path: .\target\saved_models
       hash: md5
-      md5: 4cd66b41f20c9aa95a97911ad731834d.dir
+      md5: e0a0e4f6047a024c7fb5bf826458f3f5.dir
       size: 1224994
       nfiles: 1
     - path: .\target\saved_windows
@@ -219,8 +225,11 @@ stages:
           n_repetitions: 1
           random_state: 87
           n_jobs: 8
+          azure_artifact_root: 
+            wasbs://mlflow-artifacts@medshedeegwinstack.blob.core.windows.net/experiments
+          experiment_name: eeg_win_stack
         split:
-          split_way: proportion
+          split_way: folder
           train_size: 0.8
           valid_size: 0.1
           test_size: 0.1
@@ -228,5 +237,5 @@ stages:
     outs:
     - path: metrics.json
       hash: md5
-      md5: 34b5de297604b993f0c4b013fcbb1d71
-      size: 136
+      md5: 4dd16573c2b606a82a362eb4800f4f35
+      size: 137
