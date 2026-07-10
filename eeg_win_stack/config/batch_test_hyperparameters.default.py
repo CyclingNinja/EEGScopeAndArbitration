@@ -54,8 +54,8 @@ TRAIN_SIZE = [0.8]  # train_size+valid_size+test_size=1.0
 VALID_SIZE = [0.1]
 TEST_SIZE = [0.1]
 SHUFFLE = [True]  # whether to shuffle training set
-MODEL_NAME = ["deep4"]  # Currently available:'deep4','eegnetv4','eegnetv1','sleep2020','usleep','tidnet','tcn_1',\
-# 'hybridnet_1','eegresnet','vit'
+MODEL_NAME = ["deep4"]  # Currently available:'deep4','eegnetv4','eegnetv1','sleep2020','usleep','tidnet','tcn',\
+# 'hybridnet','eegresnet','vit'
 # model specific hyperparameters
 DEEP4_BATCH_NORM_ALPHA = [0.1]
 
