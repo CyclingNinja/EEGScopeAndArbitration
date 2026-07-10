@@ -1,10 +1,8 @@
-from torch.nn.functional import elu
+from torch import nn
 
 from braindecode.models import (
     Deep4Net as _Deep4Net,
-    EEGNetv1 as _EEGNetv1,
-    EEGNetv4 as _EEGNetv4,
-    EEGResNet as _EEGResNet,
+    EEGNet as _EEGNet,
     HybridNet as _HybridNet,
     ShallowFBCSPNet as _ShallowFBCSPNet,
     SleepStagerBlanco2020 as _SleepStagerBlanco2020,
@@ -16,6 +14,13 @@ from braindecode.models import (
 
 from .base import AbstractModel
 from .factory import register
+
+# braindecode 1.x standardised every model on ``n_chans`` / ``n_outputs`` /
+# ``n_times``. These wrappers keep the project-facing API
+# (``n_channels`` / ``n_classes`` / ``input_window_samples``) stable and
+# translate to the braindecode names internally. Models also emit raw logits
+# now (``add_log_softmax`` was removed), so the trainer pairs them with
+# ``CrossEntropyLoss``.
 
 
 @register("deep4")
@@ -40,14 +45,14 @@ class Deep4Net(AbstractModel):
         deep4_filter_length_4=10,
         deep4_first_pool_mode="max",
         deep4_later_pool_mode="max",
-        first_nonlin=elu,
-        later_nonlin=elu,
+        first_nonlin=nn.ELU,
+        later_nonlin=nn.ELU,
     ):
         super().__init__(n_channels, n_classes, input_window_samples)
         self._inner = _Deep4Net(
-            n_channels,
-            n_classes,
-            input_window_samples=input_window_samples,
+            n_chans=n_channels,
+            n_outputs=n_classes,
+            n_times=input_window_samples,
             final_conv_length=final_conv_length,
             n_filters_time=deep4_n_filters_time,
             n_filters_spat=deep4_n_filters_spat,
@@ -68,8 +73,8 @@ class Deep4Net(AbstractModel):
             batch_norm=True,
             batch_norm_alpha=0.1,
             stride_before_pool=False,
-            first_nonlin=first_nonlin,
-            later_nonlin=later_nonlin,
+            activation_first_conv_nonlin=first_nonlin,
+            activation_later_conv_nonlin=later_nonlin,
         )
 
     def forward(self, x):
@@ -96,9 +101,9 @@ class ShallowSMACNet(AbstractModel):
     ):
         super().__init__(n_channels, n_classes, input_window_samples)
         self._inner = _ShallowFBCSPNet(
-            n_channels,
-            n_classes,
-            input_window_samples=input_window_samples,
+            n_chans=n_channels,
+            n_outputs=n_classes,
+            n_times=input_window_samples,
             n_filters_time=shallow_n_filters_time,
             filter_time_length=shallow_filter_time_length,
             n_filters_spat=shallow_n_filters_spat,
@@ -117,6 +122,8 @@ class ShallowSMACNet(AbstractModel):
 
 @register("eegnetv4")
 class EEGNetV4(AbstractModel):
+    """braindecode 1.x consolidated EEGNetv4 into a single ``EEGNet`` class."""
+
     def __init__(
         self,
         n_channels,
@@ -132,10 +139,10 @@ class EEGNetV4(AbstractModel):
         third_kernel_size=(8, 4),
     ):
         super().__init__(n_channels, n_classes, input_window_samples)
-        self._inner = _EEGNetv4(
-            n_channels,
-            n_classes,
-            input_window_samples=input_window_samples,
+        self._inner = _EEGNet(
+            n_chans=n_channels,
+            n_outputs=n_classes,
+            n_times=input_window_samples,
             final_conv_length=final_conv_length,
             pool_mode=pool_mode,
             F1=F1,
@@ -212,7 +219,7 @@ class EEGResNetWrapper(AbstractModel):
         return self._inner(x)
 
 
-@register("braindecode_tcn")
+@register("tcn")
 class BraindecodeTCN(AbstractModel):
     def __init__(
         self,
@@ -226,9 +233,11 @@ class BraindecodeTCN(AbstractModel):
         add_log_softmax=False,
     ):
         super().__init__(n_channels, n_classes, input_window_samples)
+        # braindecode's TCN is length-agnostic: it takes no n_times, and
+        # add_log_softmax was removed (it now returns logits).
         self._inner = _TCN(
-            n_channels,
-            n_classes,
+            n_chans=n_channels,
+            n_outputs=n_classes,
             n_blocks=n_blocks,
             n_filters=n_filters,
             kernel_size=kernel_size,
@@ -258,14 +267,14 @@ class SleepNet2020(AbstractModel):
     ):
         super().__init__(n_channels, n_classes, input_window_samples)
         self._inner = _SleepStagerBlanco2020(
-            n_channels,
-            sampling_freq,
+            n_chans=n_channels,
+            sfreq=sampling_freq,
             n_conv_chans=n_conv_chans,
-            input_size_s=input_size_s,
-            n_classes=n_classes,
+            input_window_seconds=input_size_s,
+            n_outputs=n_classes,
             n_groups=n_groups,
             max_pool_size=max_pool_size,
-            dropout=drop_prob,
+            drop_prob=drop_prob,
             apply_batch_norm=apply_batch_norm,
             return_feats=return_feats,
         )
@@ -293,15 +302,15 @@ class SleepNet2018(AbstractModel):
     ):
         super().__init__(n_channels, n_classes, input_window_samples)
         self._inner = _SleepStagerChambon2018(
-            n_channels,
-            sampling_freq,
+            n_chans=n_channels,
+            sfreq=sampling_freq,
             n_conv_chs=n_conv_chs,
             time_conv_size_s=time_conv_size_s,
             max_pool_size_s=max_pool_size_s,
             pad_size_s=pad_size_s,
-            input_size_s=input_size_s,
-            n_classes=n_classes,
-            dropout=drop_prob,
+            input_window_seconds=input_size_s,
+            n_outputs=n_classes,
+            drop_prob=drop_prob,
             apply_batch_norm=apply_batch_norm,
             return_feats=return_feats,
         )
@@ -329,14 +338,14 @@ class USleepWrapper(AbstractModel):
     ):
         super().__init__(n_channels, n_classes, input_window_samples)
         self._inner = _USleep(
-            in_chans=n_channels,
+            n_chans=n_channels,
             sfreq=sampling_freq,
             depth=depth,
             n_time_filters=n_time_filters,
             complexity_factor=complexity_factor,
             with_skip_connection=with_skip_connection,
-            n_classes=n_classes,
-            input_size_s=input_size_s,
+            n_outputs=n_classes,
+            input_window_seconds=input_size_s,
             time_conv_size_s=time_conv_size_s,
             ensure_odd_conv_size=ensure_odd_conv_size,
             apply_softmax=apply_softmax,
@@ -365,9 +374,9 @@ class TIDNetWrapper(AbstractModel):
     ):
         super().__init__(n_channels, n_classes, input_window_samples)
         self._inner = _TIDNet(
-            n_channels,
-            n_classes,
-            input_window_samples,
+            n_chans=n_channels,
+            n_outputs=n_classes,
+            n_times=input_window_samples,
             s_growth=s_growth,
             t_filters=t_filters,
             drop_prob=drop_prob,
@@ -387,7 +396,11 @@ class TIDNetWrapper(AbstractModel):
 class HybridNetWrapper(AbstractModel):
     def __init__(self, n_channels, n_classes, input_window_samples):
         super().__init__(n_channels, n_classes, input_window_samples)
-        self._inner = _HybridNet(n_channels, n_classes, input_window_samples)
+        self._inner = _HybridNet(
+            n_chans=n_channels,
+            n_outputs=n_classes,
+            n_times=input_window_samples,
+        )
 
     def forward(self, x):
         return self._inner(x)

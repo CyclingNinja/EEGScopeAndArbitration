@@ -110,7 +110,8 @@ class TestBuildClassifier:
         assert kwargs["batch_size"] == 4
         assert kwargs["device"] == "cpu"
         assert kwargs["optimizer"] is torch.optim.AdamW
-        assert isinstance(kwargs["criterion"], torch.nn.NLLLoss)
+        # braindecode 1.x models emit logits, so the trainer uses CrossEntropyLoss.
+        assert isinstance(kwargs["criterion"], torch.nn.CrossEntropyLoss)
 
     @patch("eeg_win_stack.training.trainer.predefined_split", return_value="SPLIT")
     @patch("eeg_win_stack.training.trainer.weight_function", return_value=torch.tensor([1.0, 1.0]))

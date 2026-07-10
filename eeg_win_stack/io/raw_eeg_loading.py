@@ -40,6 +40,7 @@ class RawEEGLoader:
         use_tueg: bool = False,
         preload: bool = True,
         n_jobs: int = 1,
+        tuab_version: str = "v3.0.1",
     ):
         self.tuab_path = tuab_path
         self.tueg_path = tueg_path
@@ -49,6 +50,7 @@ class RawEEGLoader:
         self.use_tueg = use_tueg
         self.preload = preload
         self.n_jobs = n_jobs
+        self.tuab_version = tuab_version
 
     def load(self) -> BaseConcatDataset:
         """Load raw TUAB and/or TUEG recordings into a BaseConcatDataset."""
@@ -61,6 +63,7 @@ class RawEEGLoader:
                 recording_ids=tuab_ids,
                 target_name="pathological",
                 preload=self.preload,
+                version=self.tuab_version,
             )
             datasets.extend(ds_tuab.datasets)
 
