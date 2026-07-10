@@ -2,9 +2,9 @@ from torch import nn
 from torch.nn import init
 from torch.nn.utils import weight_norm
 
-from braindecode.models.modules import Ensure4d, Expression
-from braindecode.models.functions import squeeze_final_output
+from braindecode.modules import Ensure4d, Expression
 
+from ._braindecode_compat import squeeze_final_output
 from .base import AbstractModel
 from .factory import register
 

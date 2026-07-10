@@ -207,8 +207,8 @@ class Trainer:
         model : torch.nn.Module
             The model to wrap.
         train_set : braindecode.datasets.BaseConcatDataset, optional
-            When given, its targets weight the ``NLLLoss``; otherwise an
-            unweighted loss is used (e.g. for inference-only loading).
+            When given, its targets weight the ``CrossEntropyLoss``; otherwise
+            an unweighted loss is used (e.g. for inference-only loading).
         valid_set : braindecode.datasets.BaseConcatDataset, optional
             Used as the validation split when
             :attr:`TrainingConfig.test_on_eval` is ``True``.
@@ -222,10 +222,13 @@ class Trainer:
         cfg = self.config
         device = cfg.resolve_device()
 
+        # braindecode 1.x models emit raw logits (add_log_softmax was removed),
+        # so we use CrossEntropyLoss rather than the NLLLoss used with the old
+        # log-softmax model outputs.
         if train_set is not None:
-            criterion = torch.nn.NLLLoss(weight_function(train_set.get_metadata().target, device))
+            criterion = torch.nn.CrossEntropyLoss(weight_function(train_set.get_metadata().target, device))
         else:
-            criterion = torch.nn.NLLLoss()
+            criterion = torch.nn.CrossEntropyLoss()
 
         train_split = predefined_split(valid_set) if (cfg.test_on_eval and valid_set is not None) else None
 

@@ -7,23 +7,22 @@ name = "eeg-win-stack"
 version = "0.1.0"
 description = "EEG experimentation and arbitration project"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.13"
 dependencies = [
-  "numpy>=1.26,<2.0",
+  "numpy>=2.0,<3.0",
   "pandas>=2.2,<3.0",
-  "pyarrow>=16,<20",
   "scikit-learn>=1.4,<2.0",
-  "torch>=2.2,<2.4",
+  "torch>=2.2",
   "torchvision>=0.17,<0.19",
-  "mne>=1.6,<2.0",
-  "braindecode>=0.6,<0.7",
-  "einops>=0.7,<0.8",
+  "torchaudio>=2.2",
+  "mne>=1.11,<2.0",
+  "braindecode>=1.6,<2.0",
+  "einops>=0.7,<1.0",
   "bayesian-optimization>=1.4.3,<2.0",
-  "skorch>=0.15,<0.16",
+  "skorch>=1.3,<2.0",
   "matplotlib>=3.8,<4.0",
-  "xgboost>=2.0,<3.0",
-  "Pillow>=10.0,<11.0",
-  "tomli>=2.0,<3.0",
+  "xgboost>=2.0,<4.0",
+  "Pillow>=10.0,<12.0",
   "mlflow>=2.0,<3.0",
 ]
 
@@ -32,6 +31,7 @@ eeg-win-stack = "eeg_win_stack.cli:main"
 
 [tool.setuptools]
 py-modules = [
+  "final_decision",
   "train_and_eval",
 ]
 
@@ -45,12 +45,27 @@ include = ["eeg_win_stack*"]
 [tool.setuptools.package-data]
 "eeg_win_stack.config" = ["params.toml"]
 
+# Resolve torch from the CPU wheel index. The test/tox env runs on CPU, and the
+# default CUDA wheels pull conflicting nvidia-nccl-cu12/-cu13 packages that fail
+# to import (`undefined symbol: ncclCommResume`). GPU training environments can
+# override these sources or install a CUDA build separately.
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+torchvision = { index = "pytorch-cpu" }
+torchaudio = { index = "pytorch-cpu" }
+
 [tool.pytest.ini_options]
 filterwarnings = [
-  # matplotlib (transitively imported via braindecode/skorch) calls pyparsing
-  # APIs deprecated in pyparsing 3.x. Fixed upstream in matplotlib 3.10, which
-  # requires Python >=3.10; this env is 3.9. Remove after the Python migration.
-  "ignore::pyparsing.exceptions.PyparsingDeprecationWarning",
+  # braindecode 1.x transitively imports local-attention / colt5-attention,
+  # which call torch.cuda.amp.autocast (deprecated in torch 2.x).
+  "ignore:.*torch.cuda.amp.autocast.*:FutureWarning",
+  # mne 1.11 sets ndarray.shape in-place; deprecated under numpy 2.5.
+  "ignore:.*Setting the shape on a NumPy array.*:DeprecationWarning",
 ]
 
 [dependency-groups]

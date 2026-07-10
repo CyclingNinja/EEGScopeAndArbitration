@@ -3,9 +3,9 @@ from torch import nn
 from torch.nn import ConstantPad2d, init
 
 from braindecode.models.deep4 import Deep4Net
-from braindecode.models.util import to_dense_prediction_model
 from braindecode.models.shallow_fbcsp import ShallowFBCSPNet
 
+from ._braindecode_compat import to_dense_prediction_model
 from .base import AbstractModel
 from .factory import register
 
@@ -28,20 +28,20 @@ class HybridNet(AbstractModel):
         super().__init__(n_channels, n_classes, input_window_samples)
 
         deep_model = Deep4Net(
-            n_channels,
-            n_classes,
+            n_chans=n_channels,
+            n_outputs=n_classes,
+            n_times=input_window_samples,
             n_filters_time=20,
             n_filters_spat=30,
             n_filters_2=40,
             n_filters_3=50,
             n_filters_4=60,
-            input_window_samples=input_window_samples,
             final_conv_length=2,
         )
         shallow_model = ShallowFBCSPNet(
-            n_channels,
-            n_classes,
-            input_window_samples=input_window_samples,
+            n_chans=n_channels,
+            n_outputs=n_classes,
+            n_times=input_window_samples,
             n_filters_time=30,
             n_filters_spat=40,
             filter_time_length=28,
