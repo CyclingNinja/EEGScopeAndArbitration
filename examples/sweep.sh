@@ -49,7 +49,7 @@ dvc queue run --jobs 1
 # Example sweep: compare models at fixed training settings
 # =============================================================================
 
-# for model in deep4 tcn_1; do
+# for model in deep4 tcn; do
 #     dvc exp run --queue \
 #         -S "${PARAMS}:model.name=${model}"
 # done

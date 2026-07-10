@@ -10,7 +10,7 @@ from .base import AbstractModel
 from .factory import register
 
 
-@register("hybridnet_1")
+@register("hybridnet")
 class HybridNet(AbstractModel):
     """Hybrid ConvNet model from Schirrmeister et al 2017.
 
