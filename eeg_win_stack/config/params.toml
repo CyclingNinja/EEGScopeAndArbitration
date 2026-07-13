@@ -16,11 +16,11 @@ console = true
 [data]
 use_tuab = true
 use_tueg = false
-n_tuab = 2993
+n_tuab = 23
 n_tueg = 50
-n_load = 100
+n_load = 1
 preload = false
-tuab_path = "E:/TUAB"
+tuab_path = "./data/TUAB/"
 tueg_path = ""
 load_saved_recordings = false
 save_recordings = true
@@ -57,7 +57,7 @@ channels = [
 ]
 
 [split]
-split_way = "folder"
+split_way = "proportion"
 train_size = 0.8
 valid_size = 0.1
 test_size = 0.1
