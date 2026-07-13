@@ -9,7 +9,7 @@ from .base import AbstractModel
 from .factory import register
 
 
-@register("tcn_1")
+@register("tcn")
 class Tcn(AbstractModel):
     """Temporal Convolutional Network (TCN) from Bai et al 2018.
 

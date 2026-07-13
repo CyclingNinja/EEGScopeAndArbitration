@@ -19,7 +19,7 @@ save_recordings = true
 save_recordings_path = "./target/saved_recordings"
 save_windows = true
 save_windows_path = "./target/saved_windows"
-load_saved_recordings = false
+load_saved_recordings = true
 load_saved_windows = true
 relabel_datasets = ""
 relabelelabels = ""
@@ -76,7 +76,7 @@ train_whole_dataset_again = true
 load_pretrained_model = false
 
 [model]
-name = "deep4"
+name = "tcn"
 final_conv_length = "auto"
 dropout = 0.1
 
