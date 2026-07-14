@@ -126,3 +126,29 @@ depth = 6
 heads = 16
 mlp_dim = 64
 emb_dropout = 0.1
+
+[decision]
+# Model architecture
+length = 10
+use_his = true
+use_hybrid = false
+adap_pool = false
+hidden_layers = 0
+hidden_length = 5
+
+# Data aggregation strategy
+use_session_or_patients = null
+
+# Training hyperparameters
+batch_size = 64
+learning_rate = 0.01
+weight_decay = 0.01
+n_epochs = 60
+
+# Split configuration
+train_ratio = 0.9072
+valid_ratio = 0.75
+fix_testset = true
+
+# Device
+device = null
