@@ -22,7 +22,7 @@ save_windows_path = "./target/saved_windows"
 load_saved_recordings = true
 load_saved_windows = false
 relabel_datasets = ""
-relabelelabels = ""
+relabel_labels = ""
 
 [preprocessing]
 bandpass_filter = false
@@ -128,27 +128,20 @@ mlp_dim = 64
 emb_dropout = 0.1
 
 [decision]
-# Model architecture
-length = 10
-use_his = true
-use_hybrid = false
-adap_pool = false
-hidden_layers = 0
-hidden_length = 5
-
-# Data aggregation strategy
-use_session_or_patients = "null"
-
-# Training hyperparameters
-batch_size = 64
+# Second-stage decision model hyperparameters
+csv_path = "./training_detail.csv"
+csv_result_path = "./decision_result.csv"
 learning_rate = 0.01
 weight_decay = 0.01
+batch_size = 64
 n_epochs = 60
-
-# Split configuration
-train_ratio = 0.9072
-valid_ratio = 0.75
+n_repetitions = 5
+histogram_length = 10
+use_histogram = true
+use_hybrid = false
+use_adaptive_pool = false
+use_session_or_patients = "null"  # null for per-recording, "patients", or "sessions"
+hidden_layers = 0
+hidden_length = 5
 fix_testset = true
-
-# Device
-device = "null"
+train_ratio = 0.9072  # Derived from first-stage split

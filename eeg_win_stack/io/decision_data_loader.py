@@ -45,6 +45,7 @@ class DecisionDataset(Dataset):
         self.valid_lens = valid_lens
 
     def __len__(self) -> int:
+        """Return dataset size."""
         return len(self.data)
 
     def __getitem__(self, index: int) -> tuple[torch.Tensor, int, int]:
