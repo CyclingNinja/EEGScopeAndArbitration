@@ -2,7 +2,7 @@
 
 This guide sets up Azure Blob Storage as:
 
-1. A **DVC remote** — so `saved_windows_data` and `saved_models` are pushed/pulled from the cloud instead of the Seagate drive.
+1. A **DVC remote** — so `target/saved_windows` and `target/saved_models` are pushed/pulled from the cloud instead of the Seagate drive.
 2. An **MLflow artifact store** — so model checkpoints and artifacts logged during `evaluate` land in Azure rather than the local `mlruns/` directory.
 
 ---
@@ -168,73 +168,59 @@ dvc push
 dvc pull
 
 # Push/pull a specific stage's output only
-dvc push -r azure saved_windows_data
+dvc push -r azure target/saved_windows
 ```
 
 ---
 
-## Part 4 — Update `dvc.yaml` Paths (optional but recommended)
+## Part 4 — Pipeline Output Paths
 
-The current `dvc.yaml` hardcodes paths to the Seagate drive. To make the pipeline portable (runnable on any machine that has `dvc pull`), switch the outputs to local `data/` paths and let DVC manage the sync to Azure:
+The pipeline already writes to portable, repo-relative `target/` paths, so it runs
+on any machine that has done `dvc pull` — no per-machine path editing is needed. For
+reference, [`dvc.yaml`](../dvc.yaml) declares (params sections trimmed here):
 
 ```yaml
 stages:
   preprocess:
     cmd: python -m eeg_win_stack.pipeline.preprocess
-    params:
-      - eeg_win_stack/config/params.toml:
-          - data
-          - preprocessing
-          - windowing
-          - run
     outs:
-      - data/saved_windows_data:
+      - target/saved_windows:
           cache: true
 
   train:
     cmd: python -m eeg_win_stack.pipeline.train
     deps:
-      - data/saved_windows_data
-    params:
-      - eeg_win_stack/config/params.toml:
-          - split
-          - training
-          - model
-          - run
+      - target/saved_windows
     outs:
-      - data/saved_models:
+      - target/saved_models:
           cache: true
 
   evaluate:
     cmd: python -m eeg_win_stack.pipeline.evaluate
     deps:
-      - data/saved_windows_data
-      - data/saved_models
-    params:
-      - eeg_win_stack/config/params.toml:
-          - split
-          - model
-          - run
+      - target/saved_windows
+      - target/saved_models
     metrics:
       - metrics.json:
           cache: false
 ```
 
-Update `params.toml` to match:
+with matching paths in [`params.toml`](../eeg_win_stack/config/params.toml):
 
 ```toml
 [data]
-save_windows_path      = "data/saved_windows"
-save_recordings_path   = "data/saved_recordings"
+save_windows_path    = "./target/saved_windows"
+save_recordings_path = "./target/saved_recordings"
 
 [output]
-saved_models_path = "data/saved_models/"
+saved_models_path = "./target/saved_models"
 ```
 
-The local `data/` directory should be git-ignored (DVC handles its contents). If it is not already:
+The `target/` directory is git-ignored (DVC manages its contents and syncs them to
+Azure) and is already listed in `.gitignore`. In a fresh repo you would add it with:
 
 ```bash
-echo '/data/' >> .gitignore
+echo '/target/' >> .gitignore
 ```
 
 ---
@@ -305,7 +291,7 @@ Files **not** to commit (should already be git-ignored):
 | File | Why |
 |---|---|
 | `.dvc/config.local` | Contains the connection string |
-| `data/` | Large binary data managed by DVC |
+| `target/` | Large binary data/models managed by DVC |
 | `mlruns/` | Local experiment tracking DB |
 
 

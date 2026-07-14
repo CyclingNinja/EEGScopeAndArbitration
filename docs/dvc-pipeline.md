@@ -16,9 +16,9 @@ preprocess ──▶ train ──▶ evaluate
 
 | Stage        | Command                                   | Reads (deps + params)                     | Produces (outs/metrics)                       |
 | ------------ | ----------------------------------------- | ----------------------------------------- | --------------------------------------------- |
-| `preprocess` | `python -m eeg_win_stack.pipeline.preprocess` | `data`, `preprocessing`, `windowing`, `run` | `data/saved_windows/` (cached)                |
-| `train`      | `python -m eeg_win_stack.pipeline.train`      | `data/saved_windows`; `split`, `training`, `model`, `run` | `data/saved_models/` (cached)        |
-| `evaluate`   | `python -m eeg_win_stack.pipeline.evaluate`   | `data/saved_windows`, `data/saved_models`; `split`, `model`, `run` | `metrics.json` (git-tracked) + MLflow run |
+| `preprocess` | `python -m eeg_win_stack.pipeline.preprocess` | `data`, `preprocessing`, `windowing`, `run` | `target/saved_windows/` (cached)                |
+| `train`      | `python -m eeg_win_stack.pipeline.train`      | `target/saved_windows`; `split`, `training`, `model`, `run` | `target/saved_models/` (cached)        |
+| `evaluate`   | `python -m eeg_win_stack.pipeline.evaluate`   | `target/saved_windows`, `target/saved_models`; `split`, `model`, `run` | `metrics.json` (git-tracked) + MLflow run |
 
 Each stage entry point is a thin `main()` that calls `eeg_win_stack.config.load()`
 to read `params.toml` and then runs the relevant subpackage
@@ -144,8 +144,8 @@ artifact.
 
 | Path                  | Tracking            | In git? |
 | --------------------- | ------------------- | ------- |
-| `data/saved_windows/` | DVC cache (`cache: true`) | no (`data/` is gitignored) |
-| `data/saved_models/`  | DVC cache (`cache: true`) | no (`data/` is gitignored) |
+| `target/saved_windows/` | DVC cache (`cache: true`) | no (`target/` is gitignored) |
+| `target/saved_models/`  | DVC cache (`cache: true`) | no (`target/` is gitignored) |
 | `metrics.json`        | DVC metric (`cache: false`) | **yes** |
 | `dvc.lock`            | git                 | **yes** |
 | `mlruns/`             | local only          | no (gitignored) |
@@ -157,9 +157,9 @@ reviewed in history.
 ## Notes / gotchas
 
 - **Model selection in `evaluate`.** The train stage saves a timestamped
-  checkpoint (`<model><timestamp>params.pt`) into `data/saved_models/`, and the
+  checkpoint (`<model><timestamp>params.pt`) into `target/saved_models/`, and the
   evaluate stage loads `sorted(glob("*.pt"))[-1]` — i.e. the latest by filename.
-  If you accumulate checkpoints across runs, clear `data/saved_models/` (or rely
+  If you accumulate checkpoints across runs, clear `target/saved_models/` (or rely
   on `dvc repro` rebuilding it) to be sure you evaluate the intended model.
 - **Editing `params.toml` vs. `-S`.** A bare `dvc repro` uses whatever is
   currently in `params.toml`. `dvc exp run -S` applies the override for that
