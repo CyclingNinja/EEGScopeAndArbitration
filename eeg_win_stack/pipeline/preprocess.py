@@ -45,7 +45,7 @@ def main():
         n_jobs=run_cfg["n_jobs"],
         save_windows=data_cfg["save_windows"],
         saved_windows_path=data_cfg["save_windows_path"],
-        load_saved_windows=data_cfg["load_saved_recordings"],
+        load_saved_windows=data_cfg["load_saved_windows"],
         load_saved_data=data_cfg["load_saved_recordings"],
         saved_data_path=data_cfg["save_recordings_path"],
         save_preprocessed=data_cfg["save_recordings"],

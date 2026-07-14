@@ -91,9 +91,14 @@ class Tcn(AbstractModel):
         elif last_layer_type == "linear":
             self.output_layer = nn.Linear(n_classes * out_size, n_classes)
         elif last_layer_type == "ave_pool":
-            self.output_layer = nn.AvgPool1d(out_size)
+            # Adaptive pooling collapses the whole temporal axis to one prediction
+            # per window regardless of the runtime window length. This is identical
+            # to AvgPool1d(out_size) when the model is built with the same window
+            # length it is fed, but stays correct if they ever diverge (e.g. a model
+            # constructed for one window length applied to differently-sized windows).
+            self.output_layer = nn.AdaptiveAvgPool1d(1)
         elif last_layer_type == "max_pool":
-            self.output_layer = nn.MaxPool1d(out_size)
+            self.output_layer = nn.AdaptiveMaxPool1d(1)
         if last_layer_type not in ("ave_pool", "max_pool"):
             init.normal_(self.output_layer.weight, 0, 0.01)
         self.eval()

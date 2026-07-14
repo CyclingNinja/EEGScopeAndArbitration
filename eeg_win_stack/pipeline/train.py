@@ -9,6 +9,7 @@ from braindecode.datautil import load_concat_dataset
 
 from eeg_win_stack.config import load
 from eeg_win_stack.models import ModelFactory
+from eeg_win_stack.pipeline.validation import validate_window_length
 from eeg_win_stack.tools.dataset_splitting import DatasetSplitter
 from eeg_win_stack.training.trainer import Trainer, TrainingConfig
 
@@ -47,6 +48,7 @@ def main():
 
     n_channels = windows_ds[0][0].shape[0]
     window_len_samples = windows_ds[0][0].shape[1]
+    validate_window_length(window_len_samples, cfg)
 
     model = ModelFactory.create(
         model_cfg["name"],
