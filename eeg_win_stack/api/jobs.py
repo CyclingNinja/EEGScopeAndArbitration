@@ -178,3 +178,331 @@ def run_training(config: dict, *, windows_path, output_dir, model_id: str | None
         manifest_path=artifact.manifest_path,
         artifact=artifact,
     )
+
+
+def run_decision_training(
+    config: dict,
+    *,
+    training_detail_csv_path: str | Path,
+    output_dir: str | Path,
+    start_row: int = 1,
+    n_rows: int = 4,
+    row_gap: int = 4,
+    block: int = 0,
+    n_repetitions: int = 1,
+) -> list[dict]:
+    """Train second-stage decision models from first-stage predictions.
+
+    Loads aggregated first-stage probabilities from a CSV artifact,
+    trains decision-stage models with specified hyperparameters,
+    and returns training metrics.
+
+    Parameters
+    ----------
+    config : dict
+        Resolved configuration with at least the ``[decision]`` section.
+    training_detail_csv_path : str or pathlib.Path
+        Path to training_detail.csv (first-stage model output).
+    output_dir : str or pathlib.Path
+        Directory to save trained models and results.
+    start_row : int, default=1
+        Starting row index for CSV label block.
+    n_rows : int, default=4
+        Number of rows containing labels in CSV.
+    row_gap : int, default=4
+        Gap between label and probability blocks in CSV.
+    block : int, default=0
+        Which block of results to use.
+    n_repetitions : int, default=1
+        Number of train/test iterations with different random splits.
+
+    Returns
+    -------
+    list[dict]
+        List of result dicts, one per repetition, with keys:
+        - "repetition": int
+        - "train_loss": float
+        - "valid_loss": float
+        - "test_acc": float
+        - "ori_acc": float
+        - "argmax_acc": float
+        - "mean_acc": float
+    """
+    from sklearn.model_selection import train_test_split
+
+    from eeg_win_stack.io.decision_data_loader import DecisionDataLoader
+    from eeg_win_stack.models.decision_models import DecisionModel, HistogramModel
+    from eeg_win_stack.tools.decision_utils import (
+        DecisionEvaluationResult,
+        compute_decision_metrics,
+    )
+
+    decision_cfg = config.get("decision", {})
+    device = (
+        decision_cfg.get("device")
+        or ("cuda" if torch.cuda.is_available() else "cpu")
+    )
+
+    # Load data
+    loader = DecisionDataLoader(
+        training_detail_csv_path,
+        start_row=start_row,
+        n_rows=n_rows,
+        row_gap=row_gap,
+        block=block,
+    )
+    dataset = loader.load(
+        aggregation=decision_cfg.get("use_session_or_patients"),
+        length=decision_cfg.get("length", 10),
+        use_hybrid=decision_cfg.get("use_hybrid", False),
+    )
+
+    # Model factory
+    use_his = decision_cfg.get("use_his", True)
+    use_session = decision_cfg.get("use_session_or_patients")
+
+    if use_session or use_his:
+        model_template = HistogramModel(
+            length=decision_cfg.get("length", 10),
+            use_hybrid=decision_cfg.get("use_hybrid", False),
+            hidden_layers=decision_cfg.get("hidden_layers", 0),
+            hidden_length=decision_cfg.get("hidden_length", 5),
+        )
+    else:
+        model_template = DecisionModel(
+            adap_pool=decision_cfg.get("adap_pool", False)
+        )
+
+    results = []
+    train_ratio = decision_cfg.get("train_ratio", 0.9072)
+    valid_ratio = decision_cfg.get("valid_ratio", 0.75)
+    fix_testset = decision_cfg.get("fix_testset", True)
+    batch_size = decision_cfg.get("batch_size", 64)
+    learning_rate = decision_cfg.get("learning_rate", 0.01)
+    weight_decay = decision_cfg.get("weight_decay", 0.01)
+    n_epochs = decision_cfg.get("n_epochs", 60)
+
+    for rep in range(n_repetitions):
+        import copy
+
+        model = copy.deepcopy(model_template)
+        model.to(device)
+
+        # Split data
+        idx_train, idx_test = train_test_split(
+            torch.arange(len(dataset)),
+            random_state=rep,
+            train_size=train_ratio,
+            shuffle=not fix_testset,
+        )
+        idx_train, idx_valid = train_test_split(
+            idx_train,
+            random_state=rep,
+            train_size=valid_ratio,
+            shuffle=True,
+        )
+
+        train_set = torch.utils.data.Subset(dataset, idx_train)
+        valid_set = torch.utils.data.Subset(dataset, idx_valid)
+        test_set = torch.utils.data.Subset(dataset, idx_test)
+
+        train_loader = torch.utils.data.DataLoader(
+            train_set, batch_size=batch_size, shuffle=True, num_workers=0
+        )
+        valid_loader = torch.utils.data.DataLoader(
+            valid_set, batch_size=batch_size, shuffle=True, num_workers=0
+        )
+        test_loader = torch.utils.data.DataLoader(
+            test_set, batch_size=16, shuffle=False, num_workers=0
+        )
+
+        # Train
+        optimizer = torch.optim.Adam(
+            model.parameters(), lr=learning_rate, weight_decay=weight_decay
+        )
+        T_max = n_epochs
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer, T_max, eta_min=0, last_epoch=-1
+        )
+        criterion = torch.nn.NLLLoss()
+        model.train()
+
+        min_loss_val = float("inf")
+        best_model = None
+        train_losses = []
+        valid_losses = []
+        iters = len(train_loader)
+
+        for epoch in range(n_epochs):
+            # Train step
+            total_loss = 0
+            for batch in train_loader:
+                optimizer.zero_grad()
+                X, Y, valid_len = [x.to(device) for x in batch]
+                Y_hat = model(X, valid_len)
+                loss = criterion(Y_hat, Y)
+                loss.backward()
+                optimizer.step()
+                total_loss += loss.item()
+                scheduler.step(epoch + len(train_loader) / iters)
+
+            train_losses.append(total_loss / len(train_loader))
+
+            # Validation step
+            model.eval()
+            total_loss = 0
+            with torch.no_grad():
+                for batch in valid_loader:
+                    X, Y, valid_len = [x.to(device) for x in batch]
+                    Y_hat = model(X, valid_len)
+                    loss = criterion(Y_hat, Y)
+                    total_loss += loss.item()
+
+            avg_valid_loss = total_loss / len(valid_loader)
+            valid_losses.append(avg_valid_loss)
+
+            if avg_valid_loss < min_loss_val:
+                min_loss_val = avg_valid_loss
+                best_model = copy.deepcopy(model)
+
+            model.train()
+
+        # Evaluate
+        model = best_model
+        model.eval()
+        all_preds = []
+        all_targets = []
+        all_data = []
+        all_valid_lens = []
+
+        with torch.no_grad():
+            for batch in test_loader:
+                X, Y, valid_len = [x.to(device) for x in batch]
+                Y_hat = model(X, valid_len)
+                all_preds.append(Y_hat)
+                all_targets.append(Y)
+                all_data.append(X)
+                all_valid_lens.append(valid_len)
+
+        preds = torch.cat(all_preds, dim=0)
+        targets = torch.cat(all_targets, dim=0)
+        data = torch.cat(all_data, dim=0)
+        valid_lens = torch.cat(all_valid_lens, dim=0)
+
+        eval_result = compute_decision_metrics(preds, targets, data, valid_lens)
+
+        results.append(
+            {
+                "repetition": rep,
+                "train_loss": train_losses[-1],
+                "valid_loss": valid_losses[-1],
+                "test_acc": eval_result.test_acc,
+                "ori_acc": eval_result.ori_acc,
+                "argmax_acc": eval_result.argmax_acc,
+                "mean_acc": eval_result.mean_acc,
+            }
+        )
+
+    return results
+
+
+def run_decision_evaluation(
+    config: dict,
+    *,
+    training_detail_csv_path: str | Path,
+    model_path: str | Path,
+    start_row: int = 1,
+    n_rows: int = 4,
+    row_gap: int = 4,
+    block: int = 0,
+) -> dict:
+    """Evaluate a trained decision model on test data.
+
+    Parameters
+    ----------
+    config : dict
+        Resolved configuration with the ``[decision]`` section.
+    training_detail_csv_path : str or pathlib.Path
+        Path to training_detail.csv.
+    model_path : str or pathlib.Path
+        Path to saved model checkpoint (``.pt`` file).
+    start_row : int, default=1
+        Starting row index for CSV label block.
+    n_rows : int, default=4
+        Number of rows containing labels in CSV.
+    row_gap : int, default=4
+        Gap between label and probability blocks in CSV.
+    block : int, default=0
+        Which block of results to use.
+
+    Returns
+    -------
+    dict
+        Evaluation metrics:
+        - "test_acc": float
+        - "ori_acc": float
+        - "argmax_acc": float
+        - "mean_acc": float
+        - "confusion_matrix": np.ndarray
+    """
+    from eeg_win_stack.io.decision_data_loader import DecisionDataLoader
+    from eeg_win_stack.tools.decision_utils import compute_decision_metrics
+
+    decision_cfg = config.get("decision", {})
+    device = (
+        decision_cfg.get("device")
+        or ("cuda" if torch.cuda.is_available() else "cpu")
+    )
+
+    # Load data
+    loader = DecisionDataLoader(
+        training_detail_csv_path,
+        start_row=start_row,
+        n_rows=n_rows,
+        row_gap=row_gap,
+        block=block,
+    )
+    dataset = loader.load(
+        aggregation=decision_cfg.get("use_session_or_patients"),
+        length=decision_cfg.get("length", 10),
+        use_hybrid=decision_cfg.get("use_hybrid", False),
+    )
+
+    # Load model
+    model = torch.load(model_path)
+    model.to(device)
+    model.eval()
+
+    # Evaluate on full dataset
+    loader_full = torch.utils.data.DataLoader(
+        dataset, batch_size=16, shuffle=False, num_workers=0
+    )
+
+    all_preds = []
+    all_targets = []
+    all_data = []
+    all_valid_lens = []
+
+    with torch.no_grad():
+        for batch in loader_full:
+            X, Y, valid_len = [x.to(device) for x in batch]
+            Y_hat = model(X, valid_len)
+            all_preds.append(Y_hat)
+            all_targets.append(Y)
+            all_data.append(X)
+            all_valid_lens.append(valid_len)
+
+    preds = torch.cat(all_preds, dim=0)
+    targets = torch.cat(all_targets, dim=0)
+    data = torch.cat(all_data, dim=0)
+    valid_lens = torch.cat(all_valid_lens, dim=0)
+
+    eval_result = compute_decision_metrics(preds, targets, data, valid_lens)
+
+    return {
+        "test_acc": eval_result.test_acc,
+        "ori_acc": eval_result.ori_acc,
+        "argmax_acc": eval_result.argmax_acc,
+        "mean_acc": eval_result.mean_acc,
+        "confusion_matrix": eval_result.confusion_matrix.tolist(),
+    }
