@@ -212,7 +212,7 @@ class EEGResNetWrapper(AbstractModel):
         return self._inner(x)
 
 
-@register("tcn")
+@register("braindecode_tcn")
 class BraindecodeTCN(AbstractModel):
     def __init__(
         self,

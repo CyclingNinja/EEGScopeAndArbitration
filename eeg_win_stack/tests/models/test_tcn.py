@@ -15,6 +15,7 @@ import pytest
 torch = pytest.importorskip("torch")
 
 try:
+    from eeg_win_stack.models import ModelFactory
     from eeg_win_stack.models.tcn import Tcn
 except ImportError:
     # tcn.py imports symbols from braindecode 0.6.x (this branch's pin). Skip
@@ -24,6 +25,31 @@ except ImportError:
         "TCN model requires braindecode 0.6.x (this branch's pin)",
         allow_module_level=True,
     )
+
+
+def test_factory_resolves_tcn_to_local_collapsing_model():
+    # Regression guard for the registry name clash: both this module and
+    # braindecode_models registered "tcn", and the dict silently kept whichever
+    # imported last (braindecode's per-timestep TCN), so the pipeline built a
+    # model whose output did not collapse -> the [8, 2, 5380] NLLLoss crash.
+    # The factory (the path the pipeline actually uses) must resolve "tcn" to the
+    # local collapsing Tcn and produce one prediction per window.
+    model = ModelFactory.create(
+        "tcn",
+        n_channels=19,
+        n_classes=2,
+        input_window_samples=6000,
+        n_blocks=5,
+        n_filters=55,
+        kernel_size=11,
+        drop_prob=0.05,
+        add_log_softmax=True,
+        last_layer_type="max_pool",
+    ).eval()
+    assert isinstance(model, Tcn)
+    with torch.no_grad():
+        out = model(torch.randn(8, 19, 6000))
+    assert out.shape == (8, 2)
 
 
 def _make_tcn(input_window_samples, last_layer_type):
