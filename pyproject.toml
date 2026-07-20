@@ -26,10 +26,12 @@ dependencies = [
   "mlflow>=2.0,<3.0",
 ]
 
+[project.scripts]
+eeg-win-stack = "eeg_win_stack.cli:main"
+
 [tool.setuptools]
 py-modules = [
   "final_decision",
-  "results_boxplot",
   "train_and_eval",
 ]
 
