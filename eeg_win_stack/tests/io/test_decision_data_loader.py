@@ -3,9 +3,6 @@
 from __future__ import annotations
 
 import csv
-import tempfile
-from pathlib import Path
-from unittest.mock import patch
 
 import numpy as np
 import pytest
@@ -145,14 +142,14 @@ class TestDecisionDataLoader:
 
         assert isinstance(dataset, DecisionDataset)
         assert len(dataset) == 4
-        data, label, valid_len = dataset[0]
+        data, _, _ = dataset[0]
         assert data.shape == (10,)  # Histogram of length 10
 
     def test_load_per_recording_with_hybrid(self, tmp_csv):
         loader = DecisionDataLoader(tmp_csv)
         dataset = loader.load(aggregation=None, length=10, use_hybrid=True)
 
-        data, label, valid_len = dataset[0]
+        data, _, _ = dataset[0]
         assert data.shape == (30,)  # 10 histogram + 20 padded raw
 
     def test_load_by_patients(self, tmp_csv):
@@ -161,7 +158,7 @@ class TestDecisionDataLoader:
 
         # 2 unique patients
         assert len(dataset) == 2
-        data, label, valid_len = dataset[0]
+        data, _, _ = dataset[0]
         assert data.shape == (10,)
 
     def test_load_by_sessions(self, tmp_csv):
@@ -184,9 +181,7 @@ class TestDecisionDataLoader:
 
     def test_aggregate_by_criterion(self, tmp_csv):
         loader = DecisionDataLoader(tmp_csv)
-        data_list, labels, valid_lens = loader.aggregate_by_criterion(
-            loader.patients, length=10
-        )
+        data_list, labels, valid_lens = loader.aggregate_by_criterion(loader.patients, length=10)
 
         assert len(data_list) == 2  # 2 unique patients
         assert len(labels) == 2
@@ -195,9 +190,7 @@ class TestDecisionDataLoader:
 
     def test_aggregate_with_hybrid(self, tmp_csv):
         loader = DecisionDataLoader(tmp_csv)
-        data_list, labels, valid_lens = loader.aggregate_by_criterion(
-            loader.patients, length=10, use_hybrid=True
-        )
+        data_list, _, _ = loader.aggregate_by_criterion(loader.patients, length=10, use_hybrid=True)
 
         assert data_list[0].shape == (30,)  # Hybrid: 10 + 20
 
@@ -229,9 +222,7 @@ class TestDecisionDataLoader:
             for row in rows:
                 writer.writerow(row)
 
-        loader = DecisionDataLoader(
-            csv_file, start_row=1, n_rows=2, row_gap=3, block=0
-        )
+        loader = DecisionDataLoader(csv_file, start_row=1, n_rows=2, row_gap=3, block=0)
         assert len(loader.labels) == 2
         assert len(loader.data) == 2
 
@@ -254,9 +245,7 @@ class TestDecisionDataIntegration:
         loader = DecisionDataLoader(tmp_csv)
         dataset = loader.load(aggregation=None, length=10)
 
-        batch_loader = torch.utils.data.DataLoader(
-            dataset, batch_size=2, shuffle=False
-        )
+        batch_loader = torch.utils.data.DataLoader(dataset, batch_size=2, shuffle=False)
         batch_data, batch_labels, batch_lens = next(iter(batch_loader))
 
         assert batch_data.shape == (2, 10)

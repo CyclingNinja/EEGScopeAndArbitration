@@ -11,9 +11,6 @@ import torch
 from sklearn.metrics import (
     accuracy_score,
     confusion_matrix,
-    matthews_corrcoef,
-    precision_score,
-    recall_score,
 )
 
 

@@ -141,10 +141,7 @@ class DecisionDataLoader:
         # Convert types
         pd_valid_lens = [int(v) for v in pd_valid_lens]
         pd_data = [float(d) for d in pd_data]
-        pd_labels = [
-            1 if (label == "True" or label == "TRUE") else 0
-            for label in pd_labels
-        ]
+        pd_labels = [1 if (label == "True" or label == "TRUE") else 0 for label in pd_labels]
 
         return pd_labels, pd_data, pd_valid_lens, patients, sessions
 
@@ -177,8 +174,7 @@ class DecisionDataLoader:
             bin_idx = int(val // (1 / length + 0.001))
             bin_idx = min(bin_idx, length - 1)  # Clamp to last bin
             hist[bin_idx] += 1
-        hist = hist / (np.sum(hist) + 1e-8)  # Normalize
-        return hist
+        return hist / (np.sum(hist) + 1e-8)  # Normalize
 
     def aggregate_by_criterion(
         self,
@@ -212,9 +208,7 @@ class DecisionDataLoader:
             valid_len = 0
 
             for idx in indexes:
-                data_pa += self.data[
-                    self.valid_lens[idx] : self.valid_lens[idx + 1]
-                ]
+                data_pa += self.data[self.valid_lens[idx] : self.valid_lens[idx + 1]]
                 valid_len += self.valid_lens[idx + 1] - self.valid_lens[idx]
 
             hist = self.create_histogram(data_pa, length)
@@ -272,9 +266,7 @@ class DecisionDataLoader:
             )
         elif aggregation == "sessions":
             # Create session identifiers
-            sessions_patients = [
-                str(p) + str(s) for p, s in zip(self.patients, self.sessions)
-            ]
+            sessions_patients = [str(p) + str(s) for p, s in zip(self.patients, self.sessions)]
             data_list, labels, valid_lens = self.aggregate_by_criterion(
                 sessions_patients,
                 length=length,
@@ -287,9 +279,7 @@ class DecisionDataLoader:
                 valid_lens.append(valid_len)
                 labels.append(self.labels[self.valid_lens[i]])
 
-                raw_segment = self.data[
-                    self.valid_lens[i] : self.valid_lens[i + 1]
-                ]
+                raw_segment = self.data[self.valid_lens[i] : self.valid_lens[i + 1]]
                 if use_hybrid:
                     hist = self.create_histogram(raw_segment, length=length)
                     padded_raw = raw_segment + [0] * (20 - valid_len)
@@ -310,9 +300,7 @@ class DecisionDataLoader:
         """
         n_recordings = len(self.valid_lens) - 1
         n_patients = len(set(self.patients))
-        sessions_patients = [
-            str(p) + str(s) for p, s in zip(self.patients, self.sessions)
-        ]
+        sessions_patients = [str(p) + str(s) for p, s in zip(self.patients, self.sessions)]
         n_sessions = len(set(sessions_patients))
         n_positive = sum(self.labels)
         pos_ratio = n_positive / len(self.labels) if self.labels else 0

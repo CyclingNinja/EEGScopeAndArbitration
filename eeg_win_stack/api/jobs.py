@@ -10,16 +10,22 @@ can be driven from code, a request handler, or a remote job alike.
 from __future__ import annotations
 
 import time
+import copy
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
 import torch
 from braindecode.datautil import load_concat_dataset
+from sklearn.model_selection import train_test_split
 
 from eeg_win_stack.api.artifacts import ModelArtifact
 from eeg_win_stack.models import ModelFactory
 from eeg_win_stack.tools.dataset_splitting import DatasetSplitter
 from eeg_win_stack.training.trainer import Trainer, TrainingConfig
+from eeg_win_stack.io.decision_data_loader import DecisionDataLoader
+from eeg_win_stack.models.decision_models import DecisionModel, HistogramModel
+from eeg_win_stack.tools.decision_utils import DecisionEvaluationResult
+from eeg_win_stack.tools.decision_utils import compute_decision_metrics
 
 
 @dataclass
@@ -204,7 +210,6 @@ def _load_decision_dataset(
     ``n_rows``, ``row_gap`` and ``block``; the aggregation and window length come
     from the ``[decision]`` config section.
     """
-    from eeg_win_stack.io.decision_data_loader import DecisionDataLoader
 
     decision_cfg = config.get("decision", {})
     loader = DecisionDataLoader(
@@ -227,7 +232,6 @@ def _build_decision_model(decision_cfg: dict):
     A :class:`HistogramModel` when aggregating by session/patient or when
     ``use_his`` is set (the default), otherwise a plain :class:`DecisionModel`.
     """
-    from eeg_win_stack.models.decision_models import DecisionModel, HistogramModel
 
     use_his = decision_cfg.get("use_his", True)
     use_session = decision_cfg.get("use_session_or_patients")
@@ -249,7 +253,6 @@ def _split_decision_data(dataset, decision_cfg: dict, *, seed: int, batch_size: 
     differ deterministically. The test split is held fixed across repetitions when
     ``fix_testset`` is set (shuffle disabled on the first split).
     """
-    from sklearn.model_selection import train_test_split
 
     train_ratio = decision_cfg.get("train_ratio", 0.9072)
     valid_ratio = decision_cfg.get("valid_ratio", 0.75)
@@ -272,15 +275,9 @@ def _split_decision_data(dataset, decision_cfg: dict, *, seed: int, batch_size: 
     valid_set = torch.utils.data.Subset(dataset, idx_valid)
     test_set = torch.utils.data.Subset(dataset, idx_test)
 
-    train_loader = torch.utils.data.DataLoader(
-        train_set, batch_size=batch_size, shuffle=True, num_workers=0
-    )
-    valid_loader = torch.utils.data.DataLoader(
-        valid_set, batch_size=batch_size, shuffle=True, num_workers=0
-    )
-    test_loader = torch.utils.data.DataLoader(
-        test_set, batch_size=16, shuffle=False, num_workers=0
-    )
+    train_loader = torch.utils.data.DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=0)
+    valid_loader = torch.utils.data.DataLoader(valid_set, batch_size=batch_size, shuffle=True, num_workers=0)
+    test_loader = torch.utils.data.DataLoader(test_set, batch_size=16, shuffle=False, num_workers=0)
     return train_loader, valid_loader, test_loader
 
 
@@ -291,7 +288,6 @@ def _evaluate_decision_model(model, loader, device) -> DecisionEvaluationResult:
     :func:`run_decision_evaluation` (on the full dataset). The model is assumed to
     already be on ``device`` and in eval mode.
     """
-    from eeg_win_stack.tools.decision_utils import compute_decision_metrics
 
     all_preds = []
     all_targets = []
@@ -363,7 +359,6 @@ def run_decision_training(
         - "argmax_acc": float
         - "mean_acc": float
     """
-    import copy
 
     decision_cfg = config.get("decision", {})
     device = _resolve_decision_device(decision_cfg)
@@ -393,13 +388,9 @@ def run_decision_training(
         )
 
         # Train
-        optimizer = torch.optim.Adam(
-            model.parameters(), lr=learning_rate, weight_decay=weight_decay
-        )
+        optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
         T_max = n_epochs
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-            optimizer, T_max, eta_min=0, last_epoch=-1
-        )
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max, eta_min=0, last_epoch=-1)
         criterion = torch.nn.NLLLoss()
         model.train()
 
@@ -519,9 +510,7 @@ def run_decision_evaluation(
     model.eval()
 
     # Evaluate on full dataset
-    loader_full = torch.utils.data.DataLoader(
-        dataset, batch_size=16, shuffle=False, num_workers=0
-    )
+    loader_full = torch.utils.data.DataLoader(dataset, batch_size=16, shuffle=False, num_workers=0)
     eval_result = _evaluate_decision_model(model, loader_full, device)
 
     return {
