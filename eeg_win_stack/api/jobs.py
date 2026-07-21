@@ -180,6 +180,141 @@ def run_training(config: dict, *, windows_path, output_dir, model_id: str | None
     )
 
 
+def _resolve_decision_device(decision_cfg: dict) -> str:
+    """Pick the torch device for decision-stage work.
+
+    Uses an explicit ``[decision] device`` if set, otherwise CUDA when available,
+    else CPU.
+    """
+    return decision_cfg.get("device") or ("cuda" if torch.cuda.is_available() else "cpu")
+
+
+def _load_decision_dataset(
+    config: dict,
+    csv_path: str | Path,
+    *,
+    start_row: int,
+    n_rows: int,
+    row_gap: int,
+    block: int,
+):
+    """Load the decision dataset from a first-stage ``training_detail.csv`` artifact.
+
+    The CSV layout (label/probability block geometry) is described by ``start_row``,
+    ``n_rows``, ``row_gap`` and ``block``; the aggregation and window length come
+    from the ``[decision]`` config section.
+    """
+    from eeg_win_stack.io.decision_data_loader import DecisionDataLoader
+
+    decision_cfg = config.get("decision", {})
+    loader = DecisionDataLoader(
+        csv_path,
+        start_row=start_row,
+        n_rows=n_rows,
+        row_gap=row_gap,
+        block=block,
+    )
+    return loader.load(
+        aggregation=decision_cfg.get("use_session_or_patients"),
+        length=decision_cfg.get("length", 10),
+        use_hybrid=decision_cfg.get("use_hybrid", False),
+    )
+
+
+def _build_decision_model(decision_cfg: dict):
+    """Construct the decision model template from the ``[decision]`` config.
+
+    A :class:`HistogramModel` when aggregating by session/patient or when
+    ``use_his`` is set (the default), otherwise a plain :class:`DecisionModel`.
+    """
+    from eeg_win_stack.models.decision_models import DecisionModel, HistogramModel
+
+    use_his = decision_cfg.get("use_his", True)
+    use_session = decision_cfg.get("use_session_or_patients")
+
+    if use_session or use_his:
+        return HistogramModel(
+            length=decision_cfg.get("length", 10),
+            use_hybrid=decision_cfg.get("use_hybrid", False),
+            hidden_layers=decision_cfg.get("hidden_layers", 0),
+            hidden_length=decision_cfg.get("hidden_length", 5),
+        )
+    return DecisionModel(adap_pool=decision_cfg.get("adap_pool", False))
+
+
+def _split_decision_data(dataset, decision_cfg: dict, *, seed: int, batch_size: int):
+    """Split ``dataset`` into train/valid/test DataLoaders for one repetition.
+
+    ``seed`` drives both the train/test and the train/valid split so repetitions
+    differ deterministically. The test split is held fixed across repetitions when
+    ``fix_testset`` is set (shuffle disabled on the first split).
+    """
+    from sklearn.model_selection import train_test_split
+
+    train_ratio = decision_cfg.get("train_ratio", 0.9072)
+    valid_ratio = decision_cfg.get("valid_ratio", 0.75)
+    fix_testset = decision_cfg.get("fix_testset", True)
+
+    idx_train, idx_test = train_test_split(
+        torch.arange(len(dataset)),
+        random_state=seed,
+        train_size=train_ratio,
+        shuffle=not fix_testset,
+    )
+    idx_train, idx_valid = train_test_split(
+        idx_train,
+        random_state=seed,
+        train_size=valid_ratio,
+        shuffle=True,
+    )
+
+    train_set = torch.utils.data.Subset(dataset, idx_train)
+    valid_set = torch.utils.data.Subset(dataset, idx_valid)
+    test_set = torch.utils.data.Subset(dataset, idx_test)
+
+    train_loader = torch.utils.data.DataLoader(
+        train_set, batch_size=batch_size, shuffle=True, num_workers=0
+    )
+    valid_loader = torch.utils.data.DataLoader(
+        valid_set, batch_size=batch_size, shuffle=True, num_workers=0
+    )
+    test_loader = torch.utils.data.DataLoader(
+        test_set, batch_size=16, shuffle=False, num_workers=0
+    )
+    return train_loader, valid_loader, test_loader
+
+
+def _evaluate_decision_model(model, loader, device) -> DecisionEvaluationResult:
+    """Run ``model`` over ``loader`` and compute the decision metrics.
+
+    Shared by :func:`run_decision_training` (on its held-out test split) and
+    :func:`run_decision_evaluation` (on the full dataset). The model is assumed to
+    already be on ``device`` and in eval mode.
+    """
+    from eeg_win_stack.tools.decision_utils import compute_decision_metrics
+
+    all_preds = []
+    all_targets = []
+    all_data = []
+    all_valid_lens = []
+
+    with torch.no_grad():
+        for batch in loader:
+            X, Y, valid_len = [x.to(device) for x in batch]
+            Y_hat = model(X, valid_len)
+            all_preds.append(Y_hat)
+            all_targets.append(Y)
+            all_data.append(X)
+            all_valid_lens.append(valid_len)
+
+    preds = torch.cat(all_preds, dim=0)
+    targets = torch.cat(all_targets, dim=0)
+    data = torch.cat(all_data, dim=0)
+    valid_lens = torch.cat(all_valid_lens, dim=0)
+
+    return compute_decision_metrics(preds, targets, data, valid_lens)
+
+
 def run_decision_training(
     config: dict,
     *,
@@ -228,92 +363,33 @@ def run_decision_training(
         - "argmax_acc": float
         - "mean_acc": float
     """
-    from sklearn.model_selection import train_test_split
-
-    from eeg_win_stack.io.decision_data_loader import DecisionDataLoader
-    from eeg_win_stack.models.decision_models import DecisionModel, HistogramModel
-    from eeg_win_stack.tools.decision_utils import (
-        DecisionEvaluationResult,
-        compute_decision_metrics,
-    )
+    import copy
 
     decision_cfg = config.get("decision", {})
-    device = (
-        decision_cfg.get("device")
-        or ("cuda" if torch.cuda.is_available() else "cpu")
-    )
+    device = _resolve_decision_device(decision_cfg)
 
-    # Load data
-    loader = DecisionDataLoader(
+    dataset = _load_decision_dataset(
+        config,
         training_detail_csv_path,
         start_row=start_row,
         n_rows=n_rows,
         row_gap=row_gap,
         block=block,
     )
-    dataset = loader.load(
-        aggregation=decision_cfg.get("use_session_or_patients"),
-        length=decision_cfg.get("length", 10),
-        use_hybrid=decision_cfg.get("use_hybrid", False),
-    )
+    model_template = _build_decision_model(decision_cfg)
 
-    # Model factory
-    use_his = decision_cfg.get("use_his", True)
-    use_session = decision_cfg.get("use_session_or_patients")
-
-    if use_session or use_his:
-        model_template = HistogramModel(
-            length=decision_cfg.get("length", 10),
-            use_hybrid=decision_cfg.get("use_hybrid", False),
-            hidden_layers=decision_cfg.get("hidden_layers", 0),
-            hidden_length=decision_cfg.get("hidden_length", 5),
-        )
-    else:
-        model_template = DecisionModel(
-            adap_pool=decision_cfg.get("adap_pool", False)
-        )
-
-    results = []
-    train_ratio = decision_cfg.get("train_ratio", 0.9072)
-    valid_ratio = decision_cfg.get("valid_ratio", 0.75)
-    fix_testset = decision_cfg.get("fix_testset", True)
     batch_size = decision_cfg.get("batch_size", 64)
     learning_rate = decision_cfg.get("learning_rate", 0.01)
     weight_decay = decision_cfg.get("weight_decay", 0.01)
     n_epochs = decision_cfg.get("n_epochs", 60)
 
+    results = []
     for rep in range(n_repetitions):
-        import copy
-
         model = copy.deepcopy(model_template)
         model.to(device)
 
-        # Split data
-        idx_train, idx_test = train_test_split(
-            torch.arange(len(dataset)),
-            random_state=rep,
-            train_size=train_ratio,
-            shuffle=not fix_testset,
-        )
-        idx_train, idx_valid = train_test_split(
-            idx_train,
-            random_state=rep,
-            train_size=valid_ratio,
-            shuffle=True,
-        )
-
-        train_set = torch.utils.data.Subset(dataset, idx_train)
-        valid_set = torch.utils.data.Subset(dataset, idx_valid)
-        test_set = torch.utils.data.Subset(dataset, idx_test)
-
-        train_loader = torch.utils.data.DataLoader(
-            train_set, batch_size=batch_size, shuffle=True, num_workers=0
-        )
-        valid_loader = torch.utils.data.DataLoader(
-            valid_set, batch_size=batch_size, shuffle=True, num_workers=0
-        )
-        test_loader = torch.utils.data.DataLoader(
-            test_set, batch_size=16, shuffle=False, num_workers=0
+        train_loader, valid_loader, test_loader = _split_decision_data(
+            dataset, decision_cfg, seed=rep, batch_size=batch_size
         )
 
         # Train
@@ -367,29 +443,10 @@ def run_decision_training(
 
             model.train()
 
-        # Evaluate
+        # Evaluate the best checkpoint on the held-out test split
         model = best_model
         model.eval()
-        all_preds = []
-        all_targets = []
-        all_data = []
-        all_valid_lens = []
-
-        with torch.no_grad():
-            for batch in test_loader:
-                X, Y, valid_len = [x.to(device) for x in batch]
-                Y_hat = model(X, valid_len)
-                all_preds.append(Y_hat)
-                all_targets.append(Y)
-                all_data.append(X)
-                all_valid_lens.append(valid_len)
-
-        preds = torch.cat(all_preds, dim=0)
-        targets = torch.cat(all_targets, dim=0)
-        data = torch.cat(all_data, dim=0)
-        valid_lens = torch.cat(all_valid_lens, dim=0)
-
-        eval_result = compute_decision_metrics(preds, targets, data, valid_lens)
+        eval_result = _evaluate_decision_model(model, test_loader, device)
 
         results.append(
             {
@@ -445,27 +502,15 @@ def run_decision_evaluation(
         - "mean_acc": float
         - "confusion_matrix": np.ndarray
     """
-    from eeg_win_stack.io.decision_data_loader import DecisionDataLoader
-    from eeg_win_stack.tools.decision_utils import compute_decision_metrics
+    device = _resolve_decision_device(config.get("decision", {}))
 
-    decision_cfg = config.get("decision", {})
-    device = (
-        decision_cfg.get("device")
-        or ("cuda" if torch.cuda.is_available() else "cpu")
-    )
-
-    # Load data
-    loader = DecisionDataLoader(
+    dataset = _load_decision_dataset(
+        config,
         training_detail_csv_path,
         start_row=start_row,
         n_rows=n_rows,
         row_gap=row_gap,
         block=block,
-    )
-    dataset = loader.load(
-        aggregation=decision_cfg.get("use_session_or_patients"),
-        length=decision_cfg.get("length", 10),
-        use_hybrid=decision_cfg.get("use_hybrid", False),
     )
 
     # Load model
@@ -477,27 +522,7 @@ def run_decision_evaluation(
     loader_full = torch.utils.data.DataLoader(
         dataset, batch_size=16, shuffle=False, num_workers=0
     )
-
-    all_preds = []
-    all_targets = []
-    all_data = []
-    all_valid_lens = []
-
-    with torch.no_grad():
-        for batch in loader_full:
-            X, Y, valid_len = [x.to(device) for x in batch]
-            Y_hat = model(X, valid_len)
-            all_preds.append(Y_hat)
-            all_targets.append(Y)
-            all_data.append(X)
-            all_valid_lens.append(valid_len)
-
-    preds = torch.cat(all_preds, dim=0)
-    targets = torch.cat(all_targets, dim=0)
-    data = torch.cat(all_data, dim=0)
-    valid_lens = torch.cat(all_valid_lens, dim=0)
-
-    eval_result = compute_decision_metrics(preds, targets, data, valid_lens)
+    eval_result = _evaluate_decision_model(model, loader_full, device)
 
     return {
         "test_acc": eval_result.test_acc,
