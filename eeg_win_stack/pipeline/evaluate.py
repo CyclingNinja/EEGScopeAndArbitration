@@ -98,7 +98,7 @@ def main():
             }
         )
         mlflow.log_metrics(metrics)
-        latest_pt = max(Path('target/saved_models').glob('*.pt'), key=lambda p: p.stat().st_mtime)
+        latest_pt = max(Path("target/saved_models").glob("*.pt"), key=lambda p: p.stat().st_mtime)
         mlflow.log_artifact(str(latest_pt), artifact_path="model")
 
 

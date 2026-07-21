@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from eeg_win_stack.api.jobs import run_decision_evaluation, run_decision_training
+from eeg_win_stack.api.jobs import run_decision_training
 from eeg_win_stack.config import load
 from eeg_win_stack.tools.decision_utils import save_decision_results
 

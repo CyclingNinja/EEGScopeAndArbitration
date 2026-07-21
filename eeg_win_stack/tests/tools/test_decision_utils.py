@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import csv
-import tempfile
-from pathlib import Path
 
 import numpy as np
 import pytest
@@ -123,10 +121,12 @@ class TestComputeDecisionMetrics:
         targets = torch.tensor([1, 0])
         # First sample: target=1, data should be >0.5
         # Second sample: target=0, data should be <0.5
-        data = torch.tensor([[0.6, 0.7, 0.8, 0.9, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5,
-                              0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5],
-                             [0.1, 0.2, 0.3, 0.4, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5,
-                              0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5]])
+        data = torch.tensor(
+            [
+                [0.6, 0.7, 0.8, 0.9, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5],
+                [0.1, 0.2, 0.3, 0.4, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5],
+            ]
+        )
         valid_lens = torch.tensor([20, 20])
 
         result = compute_decision_metrics(predictions, targets, data, valid_lens)
@@ -143,7 +143,8 @@ class TestComputeDecisionMetrics:
         valid_lens = torch.tensor([5, 10, 20])  # Different lengths
 
         result = compute_decision_metrics(predictions, targets, data, valid_lens)
-        assert result.ori_acc >= 0 and result.ori_acc <= 1
+        assert result.ori_acc >= 0
+        assert result.ori_acc <= 1
 
     def test_detaches_from_computation_graph(self):
         """Result should not require gradients."""
@@ -203,7 +204,7 @@ class TestSaveDecisionResults:
             assert float(data_row[1]) == pytest.approx(0.85)  # ori_acc
             assert int(data_row[4]) == 85  # tn
             assert int(data_row[5]) == 15  # fp
-            assert int(data_row[6]) == 5   # fn
+            assert int(data_row[6]) == 5  # fn
             assert int(data_row[7]) == 95  # tp
 
     def test_append_mode(self, result, tmp_path):

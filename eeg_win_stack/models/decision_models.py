@@ -56,8 +56,7 @@ class DecisionModel(nn.Module):
             x = x[:, : valid_len.max()]
             x = self.pooling(x)
         x = self.classifier(x)
-        x = self.log_softmax(x)
-        return x
+        return self.log_softmax(x)
 
 
 class HistogramModel(nn.Module):
@@ -115,9 +114,7 @@ class HistogramModel(nn.Module):
                     init.normal_(layer.weight, 0, 0.01)
 
         # Classifier
-        classifier_in_dim = (
-            self.hidden_length if self.hidden_layers > 0 else self.input_dim
-        )
+        classifier_in_dim = self.hidden_length if self.hidden_layers > 0 else self.input_dim
         self.classifier = nn.Linear(classifier_in_dim, 2)
         init.normal_(self.classifier.weight, 0, 0.01)
 
@@ -143,5 +140,4 @@ class HistogramModel(nn.Module):
         if self.hidden_layers > 0:
             x = self.hidden(x)
         x = self.classifier(x)
-        x = self.log_softmax(x)
-        return x
+        return self.log_softmax(x)
