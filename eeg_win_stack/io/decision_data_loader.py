@@ -150,6 +150,35 @@ class DecisionDataLoader:
         """Remove empty strings from row."""
         return [x for x in row if x != ""]
 
+    @staticmethod
+    def _pad_raw(raw: list[float], width: int = 20) -> list[float]:
+        """Right-pad (or truncate) raw probabilities to a fixed ``width``.
+
+        Gives the raw-probability feature a fixed size so batches collate and
+        ``DecisionModel``'s ``Linear(20, ...)`` receives a consistent input.
+        """
+        return (list(raw) + [0] * (width - len(raw)))[:width]
+
+    def _build_feature(
+        self,
+        raw_segment: list[float],
+        length: int,
+        use_his: bool,
+        use_hybrid: bool,
+    ) -> np.ndarray:
+        """Build a single decision feature from a recording's raw probabilities.
+
+        - ``use_hybrid``: histogram concatenated with padded raw (``HistogramModel``).
+        - ``use_his``: histogram only (``HistogramModel``).
+        - otherwise: padded raw probabilities (``DecisionModel``).
+        """
+        if use_hybrid:
+            hist = self.create_histogram(raw_segment, length=length)
+            return np.concatenate([hist, self._pad_raw(raw_segment)])
+        if use_his:
+            return self.create_histogram(raw_segment, length=length)
+        return np.asarray(self._pad_raw(raw_segment), dtype=float)
+
     def create_histogram(
         self,
         raw: list[float],
@@ -180,6 +209,7 @@ class DecisionDataLoader:
         self,
         criterion: list[str],
         length: int = 10,
+        use_his: bool = True,
         use_hybrid: bool = False,
     ) -> tuple[list[np.ndarray], list[int], list[int]]:
         """Aggregate data by criterion (patient or session).
@@ -190,6 +220,8 @@ class DecisionDataLoader:
             List of criterion values (e.g., patient IDs or session IDs).
         length : int, default=10
             Histogram bins.
+        use_his : bool, default=True
+            If True, build histogram features; otherwise padded raw probabilities.
         use_hybrid : bool, default=False
             If True, concatenate histogram with padded raw data.
 
@@ -211,15 +243,7 @@ class DecisionDataLoader:
                 data_pa += self.data[self.valid_lens[idx] : self.valid_lens[idx + 1]]
                 valid_len += self.valid_lens[idx + 1] - self.valid_lens[idx]
 
-            hist = self.create_histogram(data_pa, length)
-            if use_hybrid:
-                # Pad raw data to 20 samples
-                padded_raw = data_pa + [0] * (20 - valid_len)
-                feature = np.concatenate([hist, padded_raw])
-            else:
-                feature = hist
-
-            data_list.append(feature)
+            data_list.append(self._build_feature(data_pa, length, use_his, use_hybrid))
             valid_lens.append(valid_len)
             labels.append(self.labels[self.valid_lens[indexes[0]]])
 
@@ -229,6 +253,7 @@ class DecisionDataLoader:
         self,
         aggregation: Literal["patients", "sessions", None] = None,
         length: int = 10,
+        use_his: bool = True,
         use_hybrid: bool = False,
         n_recordings: int | None = None,
     ) -> DecisionDataset:
@@ -243,6 +268,9 @@ class DecisionDataLoader:
             - None: Use per-recording data
         length : int, default=10
             Histogram bins.
+        use_his : bool, default=True
+            If True, features are histograms (for ``HistogramModel``); if False,
+            features are padded raw probabilities (for ``DecisionModel``).
         use_hybrid : bool, default=False
             Concatenate histogram with padded raw data.
         n_recordings : int or None
@@ -258,10 +286,16 @@ class DecisionDataLoader:
         labels = []
         valid_lens = []
 
+        # Raw features pair with DecisionModel, which is only selected when not
+        # aggregating; any aggregated run uses HistogramModel, so force histograms
+        # there to keep the feature width matched to the model.
+        use_his = use_his or aggregation is not None
+
         if aggregation == "patients":
             data_list, labels, valid_lens = self.aggregate_by_criterion(
                 self.patients,
                 length=length,
+                use_his=use_his,
                 use_hybrid=use_hybrid,
             )
         elif aggregation == "sessions":
@@ -270,6 +304,7 @@ class DecisionDataLoader:
             data_list, labels, valid_lens = self.aggregate_by_criterion(
                 sessions_patients,
                 length=length,
+                use_his=use_his,
                 use_hybrid=use_hybrid,
             )
         else:  # None: per-recording
@@ -280,13 +315,7 @@ class DecisionDataLoader:
                 labels.append(self.labels[self.valid_lens[i]])
 
                 raw_segment = self.data[self.valid_lens[i] : self.valid_lens[i + 1]]
-                if use_hybrid:
-                    hist = self.create_histogram(raw_segment, length=length)
-                    padded_raw = raw_segment + [0] * (20 - valid_len)
-                    feature = np.concatenate([hist, padded_raw])
-                else:
-                    feature = self.create_histogram(raw_segment, length=length)
-                data_list.append(feature)
+                data_list.append(self._build_feature(raw_segment, length, use_his, use_hybrid))
 
         return DecisionDataset(data_list, labels, valid_lens)
 

@@ -22,7 +22,7 @@ save_windows_path = "./target/saved_windows"
 load_saved_recordings = false
 load_saved_windows = true
 relabel_datasets = ""
-relabel_labels = ""
+relabelelabels = ""
 
 [preprocessing]
 bandpass_filter = false
@@ -137,7 +137,7 @@ hidden_layers = 0
 hidden_length = 5
 
 # Data aggregation strategy
-use_session_or_patients = null
+use_session_or_patients = "null"
 
 # Training hyperparameters
 batch_size = 64
@@ -151,4 +151,4 @@ valid_ratio = 0.75
 fix_testset = true
 
 # Device
-device = null
+device = "null"

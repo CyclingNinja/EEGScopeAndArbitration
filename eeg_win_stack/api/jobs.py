@@ -222,6 +222,7 @@ def _load_decision_dataset(
     return loader.load(
         aggregation=decision_cfg.get("use_session_or_patients"),
         length=decision_cfg.get("length", 10),
+        use_his=decision_cfg.get("use_his", True),
         use_hybrid=decision_cfg.get("use_hybrid", False),
     )
 
@@ -311,7 +312,7 @@ def _evaluate_decision_model(model, loader, device) -> DecisionEvaluationResult:
     return compute_decision_metrics(preds, targets, data, valid_lens)
 
 
-def run_decision_training(
+def decision_training(
     config: dict,
     *,
     training_detail_csv_path: str | Path,
@@ -454,7 +455,7 @@ def run_decision_training(
     return results
 
 
-def run_decision_evaluation(
+def decision_evaluation(
     config: dict,
     *,
     training_detail_csv_path: str | Path,

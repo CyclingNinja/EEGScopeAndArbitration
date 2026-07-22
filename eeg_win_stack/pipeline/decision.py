@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from eeg_win_stack.api.jobs import run_decision_training
+from eeg_win_stack.api.jobs import decision_training
 from eeg_win_stack.config import load
 from eeg_win_stack.tools.decision_utils import save_decision_results
 
@@ -47,7 +47,7 @@ def main(
     log.info(f"Training decision models from {training_detail_csv}")
 
     # Train
-    training_results = run_decision_training(
+    training_results = decision_training(
         config,
         training_detail_csv_path=training_detail_csv,
         output_dir=output_dir,
