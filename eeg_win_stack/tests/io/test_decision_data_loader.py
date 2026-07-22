@@ -16,23 +16,31 @@ from eeg_win_stack.io.decision_data_loader import (
 
 @pytest.fixture
 def sample_csv_content():
-    """Sample training_detail.csv rows for testing."""
+    """Sample training_detail.csv rows for testing.
+
+    Four recordings, one window each, for two patients (P01, P02). With the
+    default ``start_row=1`` the first row is a skipped header (mirroring the real
+    artifact), so the label/probability blocks are one value per row.
+    """
     return [
-        # Labels (block 0, rows 1-4)
-        ["1", "0", "1", "0"],
-        ["1", "0", "1", "0"],
-        ["1", "0", "1", "0"],
-        ["1", "0", "1", "0"],
-        # Probabilities (rows 5-8)
-        ["0.1", "0.9", "0.2", "0.8"],
-        ["0.2", "0.8", "0.3", "0.7"],
-        ["0.15", "0.85", "0.25", "0.75"],
-        ["0.18", "0.82", "0.28", "0.72"],
-        # Valid lengths
-        ["4", "4", "4", "4"],
-        # Patients
+        # Header row (skipped by default start_row=1)
+        ["training_detail"],
+        # Labels (rows 1-4): one value per recording -> [1, 0, 1, 0]
+        ["True"],
+        ["False"],
+        ["True"],
+        ["False"],
+        # Probabilities (rows 5-8): aligned with the labels above
+        ["0.1"],
+        ["0.9"],
+        ["0.2"],
+        ["0.8"],
+        # Valid lengths: cumulative offsets into the flat window list (one window
+        # per recording); the parser appends a trailing len(labels)=4.
+        ["0", "1", "2", "3"],
+        # Patients: one per recording
         ["P01", "P01", "P02", "P02"],
-        # Sessions
+        # Sessions: one per recording
         ["S01", "S02", "S01", "S02"],
     ]
 
@@ -101,8 +109,9 @@ class TestDecisionDataLoader:
         loader = DecisionDataLoader(tmp_csv)
         # Check data values are float
         assert all(isinstance(d, float) for d in loader.data)
-        # Check valid lengths
-        assert loader.valid_lens == [4, 4, 4, 4, 4]  # 4 recordings + 1 sentinel
+        # Valid lengths are cumulative offsets into the flat window list:
+        # 4 recordings (one window each) plus the appended total length.
+        assert loader.valid_lens == [0, 1, 2, 3, 4]
 
     def test_parse_csv_patient_sessions(self, tmp_csv):
         loader = DecisionDataLoader(tmp_csv)
@@ -114,7 +123,8 @@ class TestDecisionDataLoader:
         stats = loader.stats()
         assert stats["n_recordings"] == 4
         assert stats["n_patients"] == 2
-        assert stats["n_sessions"] == 3  # P01-S01, P01-S02, P02-S01/S02 (combined)
+        # 4 distinct patient+session combos: P01-S01, P01-S02, P02-S01, P02-S02
+        assert stats["n_sessions"] == 4
         assert stats["n_labels"] == 4
         assert stats["n_positive"] == 2
         assert abs(stats["positive_ratio"] - 0.5) < 1e-5
@@ -195,23 +205,23 @@ class TestDecisionDataLoader:
         assert data_list[0].shape == (30,)  # Hybrid: 10 + 20
 
     def test_custom_csv_config(self, tmp_path):
-        """Test with custom start_row, n_rows, row_gap."""
+        """Test with custom start_row and n_rows.
+
+        For ``block=0`` the label and probability blocks are contiguous;
+        ``row_gap`` only spaces successive blocks apart, so it is inert here.
+        """
         csv_file = tmp_path / "custom.csv"
         rows = [
-            # Empty rows 0
-            [],
-            # Labels (start_row=1, n_rows=2)
-            ["1", "0"],
-            ["1", "0"],
-            # Gap (row_gap=3 means rows 3-5 are gap)
-            [],
-            [],
-            [],
-            # Probabilities (rows 6-7)
-            ["0.1", "0.9"],
-            ["0.2", "0.8"],
-            # Valid lengths
-            ["2", "2"],
+            # Header row (skipped by start_row=1)
+            ["header"],
+            # Labels (start_row=1, n_rows=2): one value per row
+            ["True"],
+            ["False"],
+            # Probabilities (contiguous with labels for block=0)
+            ["0.1"],
+            ["0.9"],
+            # Valid lengths: cumulative offsets
+            ["0", "1"],
             # Patients
             ["P01", "P02"],
             # Sessions
