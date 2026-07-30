@@ -7,18 +7,19 @@ results are logged. The pipeline is defined declaratively in
 
 ## Overview
 
-The pipeline is a three-stage DAG. DVC runs each stage in order, skipping any
+The pipeline is a four-stage DAG. DVC runs each stage in order, skipping any
 stage whose inputs (code, deps, and params) are unchanged since the last run.
 
 ```
-preprocess ──▶ train ──▶ evaluate
+preprocess ──▶ train ──▶ evaluate ──▶ decision
 ```
 
 | Stage        | Command                                   | Reads (deps + params)                     | Produces (outs/metrics)                       |
 | ------------ | ----------------------------------------- | ----------------------------------------- | --------------------------------------------- |
-| `preprocess` | `python -m eeg_win_stack.pipeline.preprocess` | `data`, `preprocessing`, `windowing`, `run` | `data/saved_windows/` (cached)                |
-| `train`      | `python -m eeg_win_stack.pipeline.train`      | `data/saved_windows`; `split`, `training`, `model`, `run` | `data/saved_models/` (cached)        |
-| `evaluate`   | `python -m eeg_win_stack.pipeline.evaluate`   | `data/saved_windows`, `data/saved_models`; `split`, `model`, `run` | `metrics.json` (git-tracked) + MLflow run |
+| `preprocess` | `uv run python -m eeg_win_stack.pipeline.preprocess` | `data`, `preprocessing`, `windowing`, `run` | `target/saved_windows/` (cached)              |
+| `train`      | `uv run python -m eeg_win_stack.pipeline.train`      | `target/saved_windows`; `split`, `training`, `model`, `run` | `target/saved_models/` (cached)      |
+| `evaluate`   | `uv run python -m eeg_win_stack.pipeline.evaluate`   | `target/saved_windows`, `target/saved_models`; `split`, `model`, `run`, `output.training_detail_path` | `metrics.json` + `target/training_detail/` + MLflow run |
+| `decision`   | `uv run python -m eeg_win_stack.pipeline.decision`   | `target/training_detail`; `decision`, `run` | `target/decision_results.csv` + `decision_metrics.json` |
 
 Each stage entry point is a thin `main()` that calls `eeg_win_stack.config.load()`
 to read `params.toml` and then runs the relevant subpackage
@@ -142,13 +143,16 @@ artifact.
 
 ## What gets cached vs. committed
 
-| Path                  | Tracking            | In git? |
-| --------------------- | ------------------- | ------- |
-| `data/saved_windows/` | DVC cache (`cache: true`) | no (`data/` is gitignored) |
-| `data/saved_models/`  | DVC cache (`cache: true`) | no (`data/` is gitignored) |
-| `metrics.json`        | DVC metric (`cache: false`) | **yes** |
-| `dvc.lock`            | git                 | **yes** |
-| `mlruns/`             | local only          | no (gitignored) |
+| Path                      | Tracking            | In git? |
+| ------------------------- | ------------------- | ------- |
+| `target/saved_windows/`   | DVC cache (`cache: true`) | no |
+| `target/saved_models/`    | DVC cache (`cache: true`) | no |
+| `target/training_detail/` | DVC out (`cache: false`)  | **yes** |
+| `target/decision_results.csv` | DVC out (`cache: false`) | **yes** |
+| `metrics.json`            | DVC metric (`cache: false`) | **yes** |
+| `decision_metrics.json`   | DVC metric (`cache: false`) | **yes** |
+| `dvc.lock`                | git                 | **yes** |
+| `mlruns/`                 | local only          | no (gitignored) |
 
 Large data and model artifacts stay in the DVC cache and out of git; the lock
 file and metrics are committed so a run can be reproduced and its scores

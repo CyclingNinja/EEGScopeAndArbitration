@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 import torch
 
-from eeg_win_stack.models.decision_models import DecisionModel, HistogramModel
+from eeg_win_stack.models.decision_models import DecisionModel, HistogramModel, build_decision_model
 
 
 class TestDecisionModel:
@@ -194,3 +194,13 @@ class TestHistogramModel:
 
         output = model(x, valid_len)
         assert output.shape == (2, 2)
+
+
+def test_build_decision_model_selects_histogram_model():
+    model = build_decision_model({"use_his": True, "length": 10})
+    assert isinstance(model, HistogramModel)
+
+
+def test_build_decision_model_selects_raw_model():
+    model = build_decision_model({"use_his": False, "use_session_or_patients": None, "adap_pool": False})
+    assert isinstance(model, DecisionModel)

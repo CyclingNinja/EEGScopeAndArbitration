@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Literal
 
 import numpy as np
+import pandas as pd
 import torch
 from torch.utils.data import Dataset
 
@@ -40,7 +41,7 @@ class DecisionDataset(Dataset):
         valid_lens : list[int]
             List of valid sequence lengths for each sample.
         """
-        self.data = torch.tensor(data, dtype=torch.float32)
+        self.data = torch.tensor(np.asarray(data), dtype=torch.float32)
         self.labels = labels
         self.valid_lens = valid_lens
 
@@ -54,10 +55,11 @@ class DecisionDataset(Dataset):
 
 
 class DecisionDataLoader:
-    """Load and aggregate first-stage predictions from CSV.
+    """Load and aggregate first-stage predictions.
 
-    Parses training_detail.csv (output from first-stage training) and
-    groups predictions into patient/session/recording aggregates.
+    Supports the structured ``training_detail/`` artifact directory as the
+    canonical format, and the legacy ``training_detail.csv`` layout as a
+    compatibility fallback.
     """
 
     def __init__(
@@ -73,7 +75,8 @@ class DecisionDataLoader:
         Parameters
         ----------
         csv_path : str or Path
-            Path to training_detail.csv from first-stage model.
+            Path to a structured training_detail directory, a structured parquet
+            file, or a legacy training_detail.csv file.
         start_row : int, default=1
             Starting row index for label block.
         n_rows : int, default=4
@@ -89,52 +92,175 @@ class DecisionDataLoader:
         self.row_gap = row_gap
         self.block = block
 
-        # Parse CSV
+        # Parse structured artifact or legacy CSV.
         (
             self.labels,
             self.data,
             self.valid_lens,
             self.patients,
             self.sessions,
-        ) = self._parse_csv()
+        ) = self._parse_source()
+
+    def _parse_source(self) -> tuple[list[int], list[float], list[int], list[str], list[str]]:
+        if self.csv_path.is_dir() or self.csv_path.suffix.lower() == ".parquet":
+            return self._parse_structured()
+        return self._parse_csv()
+
+    @staticmethod
+    def _to_binary_label(value) -> int:
+        if isinstance(value, bool):
+            return int(value)
+        if isinstance(value, (int, np.integer)):
+            return int(value != 0)
+        text = str(value).strip().lower()
+        return int(text in {"true", "1"})
+
+    def _parse_structured(self) -> tuple[list[int], list[float], list[int], list[str], list[str]]:
+        if self.csv_path.is_dir():
+            windows_path = self.csv_path / "windows.parquet"
+            recordings_path = self.csv_path / "recordings.parquet"
+        else:
+            windows_path = self.csv_path
+            recordings_path = self.csv_path.with_name("recordings.parquet")
+
+        if not windows_path.exists():
+            raise FileNotFoundError(f"Structured training detail file not found: {windows_path}")
+
+        windows_df = pd.read_parquet(windows_path)
+
+        required_window_columns = {"recording_id", "window_index_in_recording", "target", "prob_abnormal"}
+        missing_window_columns = required_window_columns - set(windows_df.columns)
+        if missing_window_columns:
+            raise ValueError(
+                f"Structured training detail missing required window columns: {sorted(missing_window_columns)}"
+            )
+
+        if recordings_path.exists():
+            recordings_df = pd.read_parquet(recordings_path)
+        else:
+            recordings_df = (
+                windows_df[["recording_id"]]
+                .drop_duplicates()
+                .assign(recording_order=lambda df: np.arange(len(df), dtype=int))
+            )
+
+        if "recording_order" in recordings_df.columns:
+            recordings_df = recordings_df.sort_values("recording_order")
+        elif "window_start_global" in recordings_df.columns:
+            recordings_df = recordings_df.sort_values("window_start_global")
+
+        pd_labels = []
+        pd_data = []
+        pd_valid_lens = []
+        patients = []
+        sessions = []
+        cursor = 0
+
+        for recording in recordings_df.to_dict("records"):
+            recording_id = recording.get("recording_id")
+            rec_windows = windows_df[windows_df["recording_id"] == recording_id].sort_values(
+                "window_index_in_recording"
+            )
+            if rec_windows.empty:
+                continue
+
+            pd_valid_lens.append(cursor)
+            labels_segment = [self._to_binary_label(v) for v in rec_windows["target"].tolist()]
+            probs_segment = [float(v) for v in rec_windows["prob_abnormal"].tolist()]
+
+            pd_labels.extend(labels_segment)
+            pd_data.extend(probs_segment)
+            cursor += len(labels_segment)
+
+            patients.append(str(recording.get("patient_id", "")))
+            sessions.append(str(recording.get("session_id", "")))
+
+        pd_valid_lens.append(len(pd_labels))
+        return pd_labels, pd_data, pd_valid_lens, patients, sessions
+
+    @staticmethod
+    def _is_label_row(row: list[str]) -> bool:
+        values = DecisionDataLoader._remove_empty(row)
+        if not values:
+            return False
+        return all(value in {"True", "TRUE", "False", "FALSE"} for value in values)
+
+    @staticmethod
+    def _is_int_row(row: list[str]) -> bool:
+        values = DecisionDataLoader._remove_empty(row)
+        if not values:
+            return False
+        try:
+            [int(value) for value in values]
+        except ValueError:
+            return False
+        return True
+
+    @staticmethod
+    def _is_float_row(row: list[str]) -> bool:
+        values = DecisionDataLoader._remove_empty(row)
+        if not values:
+            return False
+        try:
+            [float(value) for value in values]
+        except ValueError:
+            return False
+        return True
 
     def _parse_csv(
         self,
     ) -> tuple[list[int], list[float], list[int], list[str], list[str]]:
-        """Parse training_detail.csv into component arrays.
+        """Parse legacy training_detail.csv into component arrays.
 
         Returns
         -------
         tuple
             (labels, data, valid_lens, patients, sessions)
         """
-        pd_labels = []
-        pd_valid_lens = []
-        pd_data = []
-        patients = []
-        sessions = []
-
-        rows_total = self.n_rows * 2 + self.row_gap
         with open(self.csv_path, newline="") as csvfile:
-            results = csv.reader(csvfile, delimiter=",")
-            for i, row in enumerate(results):
-                start = self.start_row + self.block * rows_total
-                end_labels = start + self.n_rows
-                end_data = start + self.n_rows * 2
-                end_valid = start + self.n_rows * 2
-                end_valid_labels = start + self.n_rows * 2 + 1
-                end_sessions = start + self.n_rows * 2 + 2
+            rows = [self._remove_empty(row) for row in csv.reader(csvfile, delimiter=",")]
 
-                if i >= start and i < end_labels:
-                    pd_labels += self._remove_empty(row)
-                elif i >= end_labels and i < end_data:
-                    pd_data += self._remove_empty(row)
-                elif i == end_valid:
-                    pd_valid_lens += self._remove_empty(row)
-                elif i == end_valid_labels:
-                    patients += self._remove_empty(row)
-                elif i == end_sessions:
-                    sessions += self._remove_empty(row)
+        index = self.start_row
+        current_block = 0
+        while index < len(rows):
+            while index < len(rows) and not rows[index]:
+                index += 1
+            if index >= len(rows):
+                break
+
+            labels = []
+            while index < len(rows) and self._is_label_row(rows[index]):
+                labels.extend(rows[index])
+                index += 1
+
+            if not labels:
+                index += 1
+                continue
+
+            probabilities = []
+            while index < len(rows) and self._is_float_row(rows[index]) and not self._is_int_row(rows[index]):
+                probabilities.extend(rows[index])
+                index += 1
+
+            if index + 2 >= len(rows):
+                break
+
+            if current_block == self.block:
+                pd_labels = labels
+                pd_data = probabilities
+                pd_valid_lens = rows[index]
+                patients = rows[index + 1]
+                sessions = rows[index + 2]
+                break
+
+            current_block += 1
+            index += 3
+        else:
+            pd_labels = []
+            pd_data = []
+            pd_valid_lens = []
+            patients = []
+            sessions = []
 
         # Add final valid length
         pd_valid_lens.append(len(pd_labels))
@@ -142,7 +268,7 @@ class DecisionDataLoader:
         # Convert types
         pd_valid_lens = [int(v) for v in pd_valid_lens]
         pd_data = [float(d) for d in pd_data]
-        pd_labels = [1 if (label == "True" or label == "TRUE") else 0 for label in pd_labels]
+        pd_labels = [self._to_binary_label(label) for label in pd_labels]
 
         return pd_labels, pd_data, pd_valid_lens, patients, sessions
 

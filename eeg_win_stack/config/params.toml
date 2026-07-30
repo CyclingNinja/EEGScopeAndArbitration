@@ -36,7 +36,7 @@ max_abs_val = 800
 sampling_freq = 100
 
 [windowing]
-window_len_s = 60
+window_len_s = 30
 multiple = 0
 tmin = 300
 sec_to_cut = 60
@@ -72,6 +72,7 @@ checkpoint_dir = ""
 [output]
 log_path = "./target/result.csv"
 saved_models_path = "./target/saved_models"
+training_detail_path = "./target/training_detail"
 plot_result = false
 train_whole_dataset_again = true
 load_pretrained_model = false
@@ -130,7 +131,8 @@ emb_dropout = 0.1
 
 [decision]
 # Second-stage decision model hyperparameters
-csv_path = "./training_detail.csv"
+detail_path = "./target/training_detail"
+csv_path = "./target/training_detail"  # legacy key consumed as fallback
 csv_result_path = "./target/decision_results.csv"
 learning_rate = 0.01
 weight_decay = 0.01
@@ -146,3 +148,8 @@ hidden_layers = 0
 hidden_length = 5
 fix_testset = true
 train_ratio = 0.9072  # Derived from first-stage split
+valid_ratio = 0.75
+start_row = 1
+n_rows = 4
+row_gap = 4
+block = 0

@@ -3,15 +3,19 @@
 from __future__ import annotations
 
 import csv
+import json
 from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import torch
 from sklearn.metrics import (
     accuracy_score,
     confusion_matrix,
 )
+
+from eeg_win_stack.tools.metrics import find_all_zero
 
 
 @dataclass
@@ -199,3 +203,287 @@ def save_decision_results(
         if metadata:
             row.extend([str(v) for v in metadata.values()])
         writer.writerow(row)
+
+
+def save_training_detail(
+    eeg_classifier,
+    datasets: list,
+    output_path: str | Path,
+    *,
+    chunk_size: int = 16384,
+) -> None:
+    """Persist first-stage predictions consumed by decision-stage training.
+
+    Preferred output is a structured directory containing parquet + manifest
+    files for machine readability and an easy-to-scan summary CSV. Passing a
+    ``.csv`` path preserves the legacy single-file layout.
+    """
+
+    output_path = Path(output_path)
+    if output_path.suffix.lower() == ".csv":
+        split_items = _normalize_splits(datasets)
+        _write_legacy_training_detail_csv(
+            eeg_classifier,
+            [dataset for _, dataset in split_items],
+            output_path,
+            chunk_size=chunk_size,
+        )
+        return
+
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    split_items = _normalize_splits(datasets)
+    windows_df, recordings_df = _build_training_detail_tables(eeg_classifier, split_items)
+
+    windows_path = output_path / "windows.parquet"
+    recordings_path = output_path / "recordings.parquet"
+    summary_path = output_path / "recording_summary.csv"
+    manifest_path = output_path / "manifest.json"
+
+    windows_df.to_parquet(windows_path, index=False)
+    recordings_df.to_parquet(recordings_path, index=False)
+
+    summary_df = _build_recording_summary(recordings_df, windows_df)
+    summary_df.to_csv(summary_path, index=False)
+
+    manifest = {
+        "format": "training_detail_v2",
+        "format_version": 2,
+        "files": {
+            "windows": windows_path.name,
+            "recordings": recordings_path.name,
+            "summary": summary_path.name,
+            "legacy_csv": "legacy_training_detail.csv",
+        },
+        "counts": {
+            "n_windows": int(len(windows_df)),
+            "n_recordings": int(len(recordings_df)),
+            "n_patients": int(recordings_df["patient_id"].nunique()) if not recordings_df.empty else 0,
+            "n_sessions": int(
+                recordings_df[["patient_id", "session_id"]].drop_duplicates().shape[0]
+            )
+            if not recordings_df.empty
+            else 0,
+        },
+    }
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+
+    # Keep a compatibility copy while consumers migrate off the legacy parser.
+    _write_legacy_training_detail_csv(
+        eeg_classifier,
+        [dataset for _, dataset in split_items],
+        output_path / "legacy_training_detail.csv",
+        chunk_size=chunk_size,
+    )
+
+
+def _normalize_splits(datasets: list) -> list[tuple[str, object]]:
+    if not datasets:
+        return []
+    if isinstance(datasets[0], tuple):
+        return [(str(name), ds) for name, ds in datasets]
+
+    split_names = ["train", "valid", "test"]
+    return [
+        (split_names[i] if i < len(split_names) else f"split_{i}", ds)
+        for i, ds in enumerate(datasets)
+    ]
+
+
+def _split_path_parts(path_value: str) -> tuple[str, str]:
+    parts = str(path_value).replace("/", "\\").split("\\")
+    if len(parts) >= 3:
+        return parts[-3], parts[-2]
+    return "", ""
+
+
+def _build_training_detail_tables(
+    eeg_classifier,
+    split_items: list[tuple[str, object]],
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    window_rows = []
+    recording_rows = []
+    global_window_index = 0
+    recording_index = 0
+
+    for split_name, dataset in split_items:
+        metadata = dataset.get_metadata()
+        targets = [bool(target) for target in metadata.target.tolist()]
+        probs = np.exp(np.asarray(eeg_classifier.predict_proba(dataset)[:, 1])).tolist()
+        starts = find_all_zero(metadata["i_window_in_trial"].tolist())
+        if not starts or starts[0] != 0:
+            starts = [0] + starts
+
+        description_paths = [row[0] for row in np.asarray(dataset.description.loc[:, ["path"]]).tolist()]
+
+        for rec_i, rec_start in enumerate(starts):
+            rec_end = starts[rec_i + 1] if rec_i + 1 < len(starts) else len(targets)
+            if rec_end <= rec_start:
+                continue
+
+            path_value = description_paths[rec_i] if rec_i < len(description_paths) else ""
+            patient_id, session_id = _split_path_parts(path_value)
+            recording_id = f"rec_{recording_index:06d}"
+
+            recording_rows.append(
+                {
+                    "recording_id": recording_id,
+                    "recording_order": recording_index,
+                    "split": split_name,
+                    "path": str(path_value),
+                    "patient_id": patient_id,
+                    "session_id": session_id,
+                    "target": bool(targets[rec_start]),
+                    "window_count": rec_end - rec_start,
+                    "window_start_global": global_window_index,
+                }
+            )
+
+            for local_window_index, source_index in enumerate(range(rec_start, rec_end)):
+                window_rows.append(
+                    {
+                        "recording_id": recording_id,
+                        "recording_order": recording_index,
+                        "split": split_name,
+                        "path": str(path_value),
+                        "patient_id": patient_id,
+                        "session_id": session_id,
+                        "window_index_in_recording": local_window_index,
+                        "global_window_index": global_window_index,
+                        "target": bool(targets[source_index]),
+                        "prob_abnormal": float(probs[source_index]),
+                    }
+                )
+                global_window_index += 1
+
+            recording_index += 1
+
+    windows_df = pd.DataFrame.from_records(
+        window_rows,
+        columns=[
+            "recording_id",
+            "recording_order",
+            "split",
+            "path",
+            "patient_id",
+            "session_id",
+            "window_index_in_recording",
+            "global_window_index",
+            "target",
+            "prob_abnormal",
+        ],
+    )
+    recordings_df = pd.DataFrame.from_records(
+        recording_rows,
+        columns=[
+            "recording_id",
+            "recording_order",
+            "split",
+            "path",
+            "patient_id",
+            "session_id",
+            "target",
+            "window_count",
+            "window_start_global",
+        ],
+    )
+    return windows_df, recordings_df
+
+
+def _build_recording_summary(recordings_df: pd.DataFrame, windows_df: pd.DataFrame) -> pd.DataFrame:
+    if recordings_df.empty:
+        return pd.DataFrame(
+            columns=[
+                "recording_id",
+                "split",
+                "patient_id",
+                "session_id",
+                "target",
+                "window_count",
+                "prob_mean",
+                "prob_std",
+                "prob_min",
+                "prob_max",
+                "positive_window_ratio",
+                "pred_label",
+            ]
+        )
+
+    stats = (
+        windows_df.groupby("recording_id")
+        .agg(
+            prob_mean=("prob_abnormal", "mean"),
+            prob_std=("prob_abnormal", "std"),
+            prob_min=("prob_abnormal", "min"),
+            prob_max=("prob_abnormal", "max"),
+            positive_window_ratio=("target", "mean"),
+        )
+        .reset_index()
+    )
+
+    summary_df = recordings_df.merge(stats, on="recording_id", how="left")
+    summary_df["prob_std"] = summary_df["prob_std"].fillna(0.0)
+    summary_df["pred_label"] = (summary_df["prob_mean"] > 0.5).astype(int)
+    return summary_df[
+        [
+            "recording_id",
+            "split",
+            "patient_id",
+            "session_id",
+            "target",
+            "window_count",
+            "prob_mean",
+            "prob_std",
+            "prob_min",
+            "prob_max",
+            "positive_window_ratio",
+            "pred_label",
+        ]
+    ]
+
+
+def _write_legacy_training_detail_csv(
+    eeg_classifier,
+    datasets: list,
+    output_path: Path,
+    *,
+    chunk_size: int,
+) -> None:
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    window_labels = []
+    window_probs = []
+    recording_offsets = []
+    patients = []
+    sessions = []
+    offset = 0
+
+    for dataset in datasets:
+        metadata = dataset.get_metadata()
+        targets = [bool(target) for target in metadata.target.tolist()]
+        probs = np.exp(np.asarray(eeg_classifier.predict_proba(dataset)[:, 1])).tolist()
+
+        window_labels.extend(targets)
+        window_probs.extend(probs)
+        recording_offsets.extend(start + offset for start in find_all_zero(metadata["i_window_in_trial"].tolist()))
+
+        for row in np.asarray(dataset.description.loc[:, ["path"]]).tolist():
+            parts = str(row[0]).replace("/", "\\").split("\\")
+            patients.append(parts[-3])
+            sessions.append(parts[-2])
+
+        offset += len(targets)
+
+    with output_path.open("w", newline="") as handle:
+        writer = csv.writer(handle, delimiter=",", lineterminator="\n")
+        writer.writerow(["training_detail"])
+
+        for start in range(0, len(window_labels), chunk_size):
+            writer.writerow(window_labels[start : start + chunk_size])
+
+        for start in range(0, len(window_probs), chunk_size):
+            writer.writerow(window_probs[start : start + chunk_size])
+
+        writer.writerow(recording_offsets)
+        writer.writerow(patients)
+        writer.writerow(sessions)

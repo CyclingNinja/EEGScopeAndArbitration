@@ -1,6 +1,6 @@
 stages:
   preprocess:
-    cmd: python -m eeg_win_stack.pipeline.preprocess
+    cmd: uv run python -m eeg_win_stack.pipeline.preprocess
     params:
       - eeg_win_stack/config/params.toml:
           - data
@@ -12,7 +12,7 @@ stages:
           cache: true
 
   train:
-    cmd: python -m eeg_win_stack.pipeline.train
+    cmd: uv run python -m eeg_win_stack.pipeline.train
     deps:
       - ./target/saved_windows
     params:
@@ -26,21 +26,27 @@ stages:
           cache: true
 
   evaluate:
-    cmd: python -m eeg_win_stack.pipeline.evaluate
+    cmd: uv run python -m eeg_win_stack.pipeline.evaluate
     deps:
       - .\target\saved_windows
       - .\target\saved_models
     params:
       - eeg_win_stack/config/params.toml:
+          - output.training_detail_path
           - split
           - model
           - run
     metrics:
       - metrics.json:
           cache: false
+    outs:
+      - target/training_detail:
+          cache: false
   
   decision:
-    cmd: python -m eeg_win_stack.pipeline.decision
+    cmd: uv run python -m eeg_win_stack.pipeline.decision
+    deps:
+      - target/training_detail
     params:
       - eeg_win_stack/config/params.toml:
           - decision

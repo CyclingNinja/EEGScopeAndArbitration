@@ -141,3 +141,23 @@ class HistogramModel(nn.Module):
             x = self.hidden(x)
         x = self.classifier(x)
         return self.log_softmax(x)
+
+
+def build_decision_model(decision_cfg: dict) -> nn.Module:
+    """Construct a decision-stage model from the ``[decision]`` config.
+
+    Histogram features are required for patient/session aggregation, and they are
+    also the default per-recording representation when ``use_his`` is enabled.
+    """
+
+    use_his = decision_cfg.get("use_his", True)
+    use_session = decision_cfg.get("use_session_or_patients")
+
+    if use_session or use_his:
+        return HistogramModel(
+            length=decision_cfg.get("length", 10),
+            use_hybrid=decision_cfg.get("use_hybrid", False),
+            hidden_layers=decision_cfg.get("hidden_layers", 0),
+            hidden_length=decision_cfg.get("hidden_length", 5),
+        )
+    return DecisionModel(adap_pool=decision_cfg.get("adap_pool", False))

@@ -233,6 +233,18 @@ class TestRunDecisionTraining:
         # Loss should be a positive number
         assert result["valid_loss"] > 0
 
+    def test_empty_decision_dataset_raises_clear_error(self, tmp_path, decision_config):
+        csv_file = tmp_path / "training_detail.csv"
+        csv_file.write_text("outs:\n")
+
+        with pytest.raises(ValueError, match="parsed zero samples"):
+            decision_training(
+                decision_config,
+                training_detail_csv_path=csv_file,
+                output_dir=tmp_path,
+                n_repetitions=1,
+            )
+
 
 class TestRunDecisionEvaluation:
     """Tests for run_decision_evaluation function."""

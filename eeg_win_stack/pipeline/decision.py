@@ -14,20 +14,20 @@ log = logging.getLogger(__name__)
 
 
 def main(
-    training_detail_csv: str = "training_detail.csv",
+    training_detail_path: str = "target/training_detail",
     output_dir: str = "target",
     results_csv: str = "target/decision_results.csv",
-    start_row: int = 1,
-    n_rows: int = 4,
-    row_gap: int = 4,
-    block: int = 0,
+    start_row: int | None = None,
+    n_rows: int | None = None,
+    row_gap: int | None = None,
+    block: int | None = None,
 ) -> None:
     """Train and evaluate second-stage decision models.
 
     Parameters
     ----------
-    training_detail_csv : str
-        Path to training_detail.csv artifact from first-stage training.
+    training_detail_path : str
+        Path to the first-stage training detail artifact.
     output_dir : str
         Directory for saving models and results.
     results_csv : str
@@ -43,17 +43,17 @@ def main(
     """
     config = load()
     decision_cfg = config.get("decision", {})
-    training_detail_csv = decision_cfg.get("csv_path", training_detail_csv)
+    training_detail_path = decision_cfg.get("detail_path", decision_cfg.get("csv_path", training_detail_path))
     results_csv = decision_cfg.get("csv_result_path", results_csv)
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    log.info(f"Training decision models from {training_detail_csv}")
+    log.info(f"Training decision models from {training_detail_path}")
 
     # Train
     training_results = decision_training(
         config,
-        training_detail_csv_path=training_detail_csv,
+        training_detail_csv_path=training_detail_path,
         output_dir=output_dir,
         start_row=start_row,
         n_rows=n_rows,

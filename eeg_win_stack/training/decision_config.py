@@ -14,8 +14,10 @@ class DecisionConfig:
 
     Attributes
     ----------
-    csv_path : str
-        Path to training_detail.csv (first-stage model output).
+    detail_path : str
+        Path to the training detail artifact (structured directory preferred).
+    csv_path : str or None
+        Legacy fallback key for older configs still referring to CSV-style paths.
     csv_result_path : str
         Path to save decision_result.csv.
     learning_rate : float
@@ -46,12 +48,23 @@ class DecisionConfig:
         Whether to use fixed test set splits across repetitions.
     train_ratio : float
         Fraction of data for training (rest split into validation and test).
+    valid_ratio : float
+        Fraction of the non-test subset used for training.
+    start_row : int
+        Starting row index for the labels block in a legacy training_detail.csv.
+    n_rows : int
+        Number of label rows in a legacy training_detail.csv.
+    row_gap : int
+        Number of rows between the probability block and the next block.
+    block : int
+        Zero-based block index within a legacy training_detail.csv.
     device : str or None
         Torch device string (e.g. ``"cpu"`` or ``"cuda"``). When ``None``,
         the device is autodetected.
     """
 
-    csv_path: str | Path = "./training_detail.csv"
+    detail_path: str | Path = "./target/training_detail"
+    csv_path: str | Path | None = None
     csv_result_path: str | Path = "./decision_result.csv"
     learning_rate: float = 0.01
     weight_decay: float = 0.01
@@ -67,6 +80,11 @@ class DecisionConfig:
     hidden_length: int = 5
     fix_testset: bool = True
     train_ratio: float = 0.9072
+    valid_ratio: float = 0.75
+    start_row: int = 1
+    n_rows: int = 4
+    row_gap: int = 4
+    block: int = 0
     device: str | None = None
 
     def resolve_device(self) -> str:
@@ -84,6 +102,10 @@ class DecisionConfig:
 
     def __post_init__(self):
         """Validate and normalize configuration."""
+        if self.csv_path is not None and self.detail_path == "./target/training_detail":
+            # Backward compatibility for old config objects.
+            self.detail_path = self.csv_path
+
         if self.use_session_or_patients is not None:
             if self.use_session_or_patients not in ("patients", "sessions"):
                 raise ValueError(
@@ -105,3 +127,18 @@ class DecisionConfig:
 
         if not (0 < self.train_ratio < 1):
             raise ValueError(f"train_ratio must be in (0, 1); got {self.train_ratio}")
+
+        if not (0 < self.valid_ratio < 1):
+            raise ValueError(f"valid_ratio must be in (0, 1); got {self.valid_ratio}")
+
+        if self.start_row < 0:
+            raise ValueError(f"start_row must be >= 0; got {self.start_row}")
+
+        if self.n_rows <= 0:
+            raise ValueError(f"n_rows must be > 0; got {self.n_rows}")
+
+        if self.row_gap < 0:
+            raise ValueError(f"row_gap must be >= 0; got {self.row_gap}")
+
+        if self.block < 0:
+            raise ValueError(f"block must be >= 0; got {self.block}")

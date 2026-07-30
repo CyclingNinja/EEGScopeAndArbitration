@@ -16,14 +16,14 @@ from pathlib import Path
 
 import torch
 from braindecode.datautil import load_concat_dataset
-from sklearn.model_selection import train_test_split
 
 from eeg_win_stack.api.artifacts import ModelArtifact
 from eeg_win_stack.models import ModelFactory
+from eeg_win_stack.models.decision_models import build_decision_model
 from eeg_win_stack.tools.dataset_splitting import DatasetSplitter
 from eeg_win_stack.training.trainer import Trainer, TrainingConfig
+from eeg_win_stack.training.decision import split_decision_data
 from eeg_win_stack.io.decision_data_loader import DecisionDataLoader
-from eeg_win_stack.models.decision_models import DecisionModel, HistogramModel
 from eeg_win_stack.tools.decision_utils import DecisionEvaluationResult
 from eeg_win_stack.tools.decision_utils import compute_decision_metrics
 
@@ -199,19 +199,24 @@ def _load_decision_dataset(
     config: dict,
     csv_path: str | Path,
     *,
-    start_row: int,
-    n_rows: int,
-    row_gap: int,
-    block: int,
+    start_row: int | None,
+    n_rows: int | None,
+    row_gap: int | None,
+    block: int | None,
 ):
-    """Load the decision dataset from a first-stage ``training_detail.csv`` artifact.
+    """Load the decision dataset from a first-stage training detail artifact.
 
-    The CSV layout (label/probability block geometry) is described by ``start_row``,
-    ``n_rows``, ``row_gap`` and ``block``; the aggregation and window length come
-    from the ``[decision]`` config section.
+    The canonical format is a structured directory (parquet + manifest). Legacy
+    CSV layout settings (``start_row``, ``n_rows``, ``row_gap``, ``block``) are
+    applied when reading old single-file artifacts.
     """
 
     decision_cfg = config.get("decision", {})
+    start_row = decision_cfg.get("start_row", 1) if start_row is None else start_row
+    n_rows = decision_cfg.get("n_rows", 4) if n_rows is None else n_rows
+    row_gap = decision_cfg.get("row_gap", 4) if row_gap is None else row_gap
+    block = decision_cfg.get("block", 0) if block is None else block
+
     loader = DecisionDataLoader(
         csv_path,
         start_row=start_row,
@@ -219,67 +224,20 @@ def _load_decision_dataset(
         row_gap=row_gap,
         block=block,
     )
-    return loader.load(
+    dataset = loader.load(
         aggregation=decision_cfg.get("use_session_or_patients"),
         length=decision_cfg.get("length", 10),
         use_his=decision_cfg.get("use_his", True),
         use_hybrid=decision_cfg.get("use_hybrid", False),
     )
-
-
-def _build_decision_model(decision_cfg: dict):
-    """Construct the decision model template from the ``[decision]`` config.
-
-    A :class:`HistogramModel` when aggregating by session/patient or when
-    ``use_his`` is set (the default), otherwise a plain :class:`DecisionModel`.
-    """
-
-    use_his = decision_cfg.get("use_his", True)
-    use_session = decision_cfg.get("use_session_or_patients")
-
-    if use_session or use_his:
-        return HistogramModel(
-            length=decision_cfg.get("length", 10),
-            use_hybrid=decision_cfg.get("use_hybrid", False),
-            hidden_layers=decision_cfg.get("hidden_layers", 0),
-            hidden_length=decision_cfg.get("hidden_length", 5),
+    if len(dataset) == 0:
+        raise ValueError(
+            "Decision dataset parsed zero samples from "
+            f"{csv_path}. Check decision.detail_path (or decision.csv_path for legacy), "
+            "and for legacy CSV inputs verify layout settings "
+            f"(start_row={start_row}, n_rows={n_rows}, row_gap={row_gap}, block={block})."
         )
-    return DecisionModel(adap_pool=decision_cfg.get("adap_pool", False))
-
-
-def _split_decision_data(dataset, decision_cfg: dict, *, seed: int, batch_size: int):
-    """Split ``dataset`` into train/valid/test DataLoaders for one repetition.
-
-    ``seed`` drives both the train/test and the train/valid split so repetitions
-    differ deterministically. The test split is held fixed across repetitions when
-    ``fix_testset`` is set (shuffle disabled on the first split).
-    """
-
-    train_ratio = decision_cfg.get("train_ratio", 0.9072)
-    valid_ratio = decision_cfg.get("valid_ratio", 0.75)
-    fix_testset = decision_cfg.get("fix_testset", True)
-
-    idx_train, idx_test = train_test_split(
-        torch.arange(len(dataset)),
-        random_state=seed,
-        train_size=train_ratio,
-        shuffle=not fix_testset,
-    )
-    idx_train, idx_valid = train_test_split(
-        idx_train,
-        random_state=seed,
-        train_size=valid_ratio,
-        shuffle=True,
-    )
-
-    train_set = torch.utils.data.Subset(dataset, idx_train)
-    valid_set = torch.utils.data.Subset(dataset, idx_valid)
-    test_set = torch.utils.data.Subset(dataset, idx_test)
-
-    train_loader = torch.utils.data.DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=0)
-    valid_loader = torch.utils.data.DataLoader(valid_set, batch_size=batch_size, shuffle=True, num_workers=0)
-    test_loader = torch.utils.data.DataLoader(test_set, batch_size=16, shuffle=False, num_workers=0)
-    return train_loader, valid_loader, test_loader
+    return dataset
 
 
 def _evaluate_decision_model(model, loader, device) -> DecisionEvaluationResult:
@@ -317,15 +275,15 @@ def decision_training(
     *,
     training_detail_csv_path: str | Path,
     output_dir: str | Path,
-    start_row: int = 1,
-    n_rows: int = 4,
-    row_gap: int = 4,
-    block: int = 0,
+    start_row: int | None = None,
+    n_rows: int | None = None,
+    row_gap: int | None = None,
+    block: int | None = None,
     n_repetitions: int = 1,
 ) -> list[dict]:
     """Train second-stage decision models from first-stage predictions.
 
-    Loads aggregated first-stage probabilities from a CSV artifact,
+    Loads aggregated first-stage probabilities from a training detail artifact,
     trains decision-stage models with specified hyperparameters,
     and returns training metrics.
 
@@ -334,17 +292,18 @@ def decision_training(
     config : dict
         Resolved configuration with at least the ``[decision]`` section.
     training_detail_csv_path : str or pathlib.Path
-        Path to training_detail.csv (first-stage model output).
+        Path to the first-stage training detail artifact (structured directory
+        preferred; legacy CSV is still supported).
     output_dir : str or pathlib.Path
         Directory to save trained models and results.
-    start_row : int, default=1
-        Starting row index for CSV label block.
-    n_rows : int, default=4
-        Number of rows containing labels in CSV.
-    row_gap : int, default=4
-        Gap between label and probability blocks in CSV.
-    block : int, default=0
-        Which block of results to use.
+    start_row : int, optional
+        Legacy CSV-only setting for the starting label row.
+    n_rows : int, optional
+        Legacy CSV-only setting for label row count.
+    row_gap : int, optional
+        Legacy CSV-only setting for row gap between blocks.
+    block : int, optional
+        Legacy CSV-only setting for selecting an experiment block.
     n_repetitions : int, default=1
         Number of train/test iterations with different random splits.
 
@@ -372,7 +331,7 @@ def decision_training(
         row_gap=row_gap,
         block=block,
     )
-    model_template = _build_decision_model(decision_cfg)
+    model_template = build_decision_model(decision_cfg)
 
     batch_size = decision_cfg.get("batch_size", 64)
     learning_rate = decision_cfg.get("learning_rate", 0.01)
@@ -384,8 +343,13 @@ def decision_training(
         model = copy.deepcopy(model_template)
         model.to(device)
 
-        train_loader, valid_loader, test_loader = _split_decision_data(
-            dataset, decision_cfg, seed=rep, batch_size=batch_size
+        train_loader, valid_loader, test_loader = split_decision_data(
+            dataset,
+            seed=rep,
+            batch_size=batch_size,
+            train_ratio=decision_cfg.get("train_ratio", 0.9072),
+            valid_ratio=decision_cfg.get("valid_ratio", 0.75),
+            fix_testset=decision_cfg.get("fix_testset", True),
         )
 
         # Train
@@ -460,10 +424,10 @@ def decision_evaluation(
     *,
     training_detail_csv_path: str | Path,
     model_path: str | Path,
-    start_row: int = 1,
-    n_rows: int = 4,
-    row_gap: int = 4,
-    block: int = 0,
+    start_row: int | None = None,
+    n_rows: int | None = None,
+    row_gap: int | None = None,
+    block: int | None = None,
 ) -> dict:
     """Evaluate a trained decision model on test data.
 
@@ -472,7 +436,8 @@ def decision_evaluation(
     config : dict
         Resolved configuration with the ``[decision]`` section.
     training_detail_csv_path : str or pathlib.Path
-        Path to training_detail.csv.
+        Path to the first-stage training detail artifact (structured directory
+        preferred; legacy CSV is still supported).
     model_path : str or pathlib.Path
         Path to saved model checkpoint (``.pt`` file).
     start_row : int, default=1

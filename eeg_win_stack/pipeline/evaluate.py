@@ -12,6 +12,7 @@ from eeg_win_stack.evaluation.evaluator import Evaluator
 from eeg_win_stack.models import ModelFactory
 from eeg_win_stack.pipeline.validation import validate_window_length
 from eeg_win_stack.tools.dataset_splitting import DatasetSplitter
+from eeg_win_stack.tools.decision_utils import save_training_detail
 from eeg_win_stack.training.trainer import Trainer, TrainingConfig
 
 
@@ -44,6 +45,7 @@ def main():
     model_cfg = cfg["model"]
     split_cfg = cfg["split"]
     run_cfg = cfg["run"]
+    output_cfg = cfg["output"]
 
     mne.set_log_level(run_cfg["mne_log_level"])
 
@@ -63,7 +65,7 @@ def main():
         shuffle=split_cfg["shuffle"],
         remove_attribute=None,
     )
-    _, _, test_set = data_choice.split_data(split_cfg["split_way"])
+    train_set, valid_set, test_set = data_choice.split_data(split_cfg["split_way"])
 
     n_channels = windows_ds[0][0].shape[0]
     window_len_samples = windows_ds[0][0].shape[1]
@@ -87,6 +89,12 @@ def main():
         n_epochs=training_cfg["n_epochs"],
     )
     eeg_classifier = Trainer(training_config).load(model, params_path)
+
+    save_training_detail(
+        eeg_classifier,
+        [("train", train_set), ("valid", valid_set), ("test", test_set)],
+        output_cfg.get("training_detail_path", "target/training_detail"),
+    )
 
     result = Evaluator().evaluate(eeg_classifier, test_set)
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 
 import numpy as np
+import pandas as pd
 import pytest
 import torch
 
@@ -13,6 +14,7 @@ from eeg_win_stack.tools.decision_utils import (
     DecisionTrainingResult,
     compute_decision_metrics,
     save_decision_results,
+    save_training_detail,
 )
 
 
@@ -265,3 +267,101 @@ class TestSaveDecisionResults:
             lines = list(reader)
 
         assert len(lines) == 4  # 1 header + 3 data rows
+
+
+class _FakeDecisionDataset:
+    def __init__(self, targets, trial_starts, paths):
+        self._metadata = pd.DataFrame({"target": targets, "i_window_in_trial": trial_starts})
+        self.description = pd.DataFrame({"path": paths})
+
+    def get_metadata(self):
+        return self._metadata
+
+
+class _FakeClassifier:
+    def __init__(self, probabilities):
+        self._probabilities = list(probabilities)
+        self._offset = 0
+
+    def predict_proba(self, dataset):
+        length = len(dataset.get_metadata())
+        probs = self._probabilities[self._offset : self._offset + length]
+        self._offset += length
+        return np.log(np.column_stack([1 - np.asarray(probs), np.asarray(probs)]))
+
+
+def test_save_training_detail_writes_legacy_layout(tmp_path):
+    output_file = tmp_path / "training_detail.csv"
+    datasets = [
+        _FakeDecisionDataset(
+            targets=[True, True, False],
+            trial_starts=[0, 1, 0],
+            paths=["root/P01/S01/file.edf", "root/P02/S02/file.edf"],
+        ),
+        _FakeDecisionDataset(
+            targets=[False, False],
+            trial_starts=[0, 1],
+            paths=["root/P03/S03/file.edf"],
+        ),
+    ]
+
+    classifier = _FakeClassifier([0.9, 0.8, 0.2, 0.1, 0.3])
+    save_training_detail(classifier, datasets, output_file)
+
+    with open(output_file, newline="") as handle:
+        rows = list(csv.reader(handle))
+
+    assert rows[0] == ["training_detail"]
+    assert rows[1] == ["True", "True", "False", "False", "False"]
+    assert rows[3] == ["0", "2", "3"]
+    assert rows[4] == ["P01", "P02", "P03"]
+    assert rows[5] == ["S01", "S02", "S03"]
+
+    probabilities = [float(value) for value in rows[2]]
+    assert probabilities == pytest.approx([0.9, 0.8, 0.2, 0.1, 0.3])
+
+
+def test_save_training_detail_writes_structured_artifact(tmp_path):
+    output_dir = tmp_path / "training_detail"
+    datasets = [
+        (
+            "train",
+            _FakeDecisionDataset(
+                targets=[True, True, False],
+                trial_starts=[0, 1, 0],
+                paths=["root/P01/S01/file.edf", "root/P02/S02/file.edf"],
+            ),
+        ),
+        (
+            "test",
+            _FakeDecisionDataset(
+                targets=[False, False],
+                trial_starts=[0, 1],
+                paths=["root/P03/S03/file.edf"],
+            ),
+        ),
+    ]
+
+    classifier = _FakeClassifier([0.9, 0.8, 0.2, 0.1, 0.3])
+    save_training_detail(classifier, datasets, output_dir)
+
+    windows_path = output_dir / "windows.parquet"
+    recordings_path = output_dir / "recordings.parquet"
+    summary_path = output_dir / "recording_summary.csv"
+    manifest_path = output_dir / "manifest.json"
+    legacy_path = output_dir / "legacy_training_detail.csv"
+
+    assert windows_path.exists()
+    assert recordings_path.exists()
+    assert summary_path.exists()
+    assert manifest_path.exists()
+    assert legacy_path.exists()
+
+    windows_df = pd.read_parquet(windows_path)
+    recordings_df = pd.read_parquet(recordings_path)
+    summary_df = pd.read_csv(summary_path)
+
+    assert len(windows_df) == 5
+    assert len(recordings_df) == 3
+    assert len(summary_df) == 3
+    assert set(["recording_id", "prob_abnormal", "target"]).issubset(windows_df.columns)

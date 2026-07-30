@@ -1,7 +1,7 @@
 schema: '2.0'
 stages:
   preprocess:
-    cmd: python -m eeg_win_stack.pipeline.preprocess
+    cmd: uv run python -m eeg_win_stack.pipeline.preprocess
     params:
       eeg_win_stack/config/params.toml:
         data:
@@ -17,8 +17,8 @@ stages:
           save_recordings_path: ./target/saved_recordings
           save_windows: true
           save_windows_path: ./target/saved_windows
-          load_saved_recordings: false
-          load_saved_windows: true
+          load_saved_recordings: true
+          load_saved_windows: false
           relabel_datasets: ''
           relabel_labels: ''
         preprocessing:
@@ -35,6 +35,7 @@ stages:
           n_repetitions: 1
           random_state: 87
           n_jobs: 8
+          use_azure_artifacts: false
           azure_artifact_root: 
             wasbs://mlflow-artifacts@medshedeegwinstack.blob.core.windows.net/experiments
           experiment_name: eeg_win_stack
@@ -67,21 +68,21 @@ stages:
     outs:
     - path: target/saved_windows
       hash: md5
-      md5: 77a11aff4e217b11dda0b09802406dee.dir
-      size: 26358566777
-      nfiles: 11972
+      md5: f7402906fa92a5cce6e74ac91a532ffb.dir
+      size: 869345852
+      nfiles: 400
   train:
-    cmd: python -m eeg_win_stack.pipeline.train
+    cmd: uv run python -m eeg_win_stack.pipeline.train
     deps:
     - path: ./target/saved_windows
       hash: md5
-      md5: 77a11aff4e217b11dda0b09802406dee.dir
-      size: 26358566777
-      nfiles: 11972
+      md5: f7402906fa92a5cce6e74ac91a532ffb.dir
+      size: 869345852
+      nfiles: 400
     params:
       eeg_win_stack/config/params.toml:
         model:
-          name: deep4
+          name: tcn
           final_conv_length: auto
           dropout: 0.1
           deep4:
@@ -132,6 +133,7 @@ stages:
           n_repetitions: 1
           random_state: 87
           n_jobs: 8
+          use_azure_artifacts: false
           azure_artifact_root: 
             wasbs://mlflow-artifacts@medshedeegwinstack.blob.core.windows.net/experiments
           experiment_name: eeg_win_stack
@@ -155,26 +157,26 @@ stages:
     outs:
     - path: target/saved_models
       hash: md5
-      md5: e0a0e4f6047a024c7fb5bf826458f3f5.dir
-      size: 1224994
-      nfiles: 1
+      md5: 3f7069a04735419ef1814e07f0923ea8.dir
+      size: 2536092
+      nfiles: 2
   evaluate:
-    cmd: python -m eeg_win_stack.pipeline.evaluate
+    cmd: uv run python -m eeg_win_stack.pipeline.evaluate
     deps:
     - path: .\target\saved_models
       hash: md5
-      md5: e0a0e4f6047a024c7fb5bf826458f3f5.dir
-      size: 1224994
-      nfiles: 1
+      md5: 3f7069a04735419ef1814e07f0923ea8.dir
+      size: 2536092
+      nfiles: 2
     - path: .\target\saved_windows
       hash: md5
-      md5: 77a11aff4e217b11dda0b09802406dee.dir
-      size: 26358566777
-      nfiles: 11972
+      md5: f7402906fa92a5cce6e74ac91a532ffb.dir
+      size: 869345852
+      nfiles: 400
     params:
       eeg_win_stack/config/params.toml:
         model:
-          name: deep4
+          name: tcn
           final_conv_length: auto
           dropout: 0.1
           deep4:
@@ -220,11 +222,13 @@ stages:
             heads: 16
             mlp_dim: 64
             emb_dropout: 0.1
+        output.training_detail_path: ./target/training_detail
         run:
           mne_log_level: WARNING
           n_repetitions: 1
           random_state: 87
           n_jobs: 8
+          use_azure_artifacts: false
           azure_artifact_root: 
             wasbs://mlflow-artifacts@medshedeegwinstack.blob.core.windows.net/experiments
           experiment_name: eeg_win_stack
@@ -237,5 +241,61 @@ stages:
     outs:
     - path: metrics.json
       hash: md5
-      md5: 4dd16573c2b606a82a362eb4800f4f35
-      size: 137
+      md5: d517b6ae7e078a7e535ee475367243bb
+      size: 136
+    - path: target/training_detail
+      hash: md5
+      md5: 7e6a7d71c08994a6a68857e8f1e975bd.dir
+      size: 107746
+      nfiles: 5
+  decision:
+    cmd: uv run python -m eeg_win_stack.pipeline.decision
+    deps:
+    - path: target/training_detail
+      hash: md5
+      md5: 7e6a7d71c08994a6a68857e8f1e975bd.dir
+      size: 107746
+      nfiles: 5
+    params:
+      eeg_win_stack/config/params.toml:
+        decision:
+          detail_path: ./target/training_detail
+          csv_path: ./target/training_detail
+          csv_result_path: ./target/decision_results.csv
+          learning_rate: 0.01
+          weight_decay: 0.01
+          batch_size: 64
+          n_epochs: 60
+          n_repetitions: 5
+          length: 10
+          use_his: true
+          use_hybrid: false
+          adap_pool: false
+          use_session_or_patients: ''
+          hidden_layers: 0
+          hidden_length: 5
+          fix_testset: true
+          train_ratio: 0.9072
+          valid_ratio: 0.75
+          start_row: 1
+          n_rows: 4
+          row_gap: 4
+          block: 0
+        run:
+          mne_log_level: WARNING
+          n_repetitions: 1
+          random_state: 87
+          n_jobs: 8
+          use_azure_artifacts: false
+          azure_artifact_root: 
+            wasbs://mlflow-artifacts@medshedeegwinstack.blob.core.windows.net/experiments
+          experiment_name: eeg_win_stack
+    outs:
+    - path: decision_metrics.json
+      hash: md5
+      md5: 07db449a5c721344e33ff1bb413c00f5
+      size: 99
+    - path: target/decision_results.csv
+      hash: md5
+      md5: 9ce35fdaac92e02ad62a006005da6d56
+      size: 439

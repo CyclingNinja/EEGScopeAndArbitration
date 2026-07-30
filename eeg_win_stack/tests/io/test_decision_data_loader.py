@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 
 import numpy as np
+import pandas as pd
 import pytest
 import torch
 
@@ -54,6 +55,42 @@ def tmp_csv(sample_csv_content, tmp_path):
         for row in sample_csv_content:
             writer.writerow(row)
     return csv_file
+
+
+@pytest.fixture
+def structured_detail_dir(tmp_path):
+    detail_dir = tmp_path / "training_detail"
+    detail_dir.mkdir(parents=True, exist_ok=True)
+
+    windows_df = pd.DataFrame(
+        {
+            "recording_id": ["rec_000000", "rec_000001", "rec_000002", "rec_000003"],
+            "recording_order": [0, 1, 2, 3],
+            "split": ["train", "train", "test", "test"],
+            "patient_id": ["P01", "P01", "P02", "P02"],
+            "session_id": ["S01", "S02", "S01", "S02"],
+            "window_index_in_recording": [0, 0, 0, 0],
+            "global_window_index": [0, 1, 2, 3],
+            "target": [True, False, True, False],
+            "prob_abnormal": [0.1, 0.9, 0.2, 0.8],
+        }
+    )
+    recordings_df = pd.DataFrame(
+        {
+            "recording_id": ["rec_000000", "rec_000001", "rec_000002", "rec_000003"],
+            "recording_order": [0, 1, 2, 3],
+            "split": ["train", "train", "test", "test"],
+            "patient_id": ["P01", "P01", "P02", "P02"],
+            "session_id": ["S01", "S02", "S01", "S02"],
+            "target": [True, False, True, False],
+            "window_count": [1, 1, 1, 1],
+            "window_start_global": [0, 1, 2, 3],
+        }
+    )
+
+    windows_df.to_parquet(detail_dir / "windows.parquet", index=False)
+    recordings_df.to_parquet(detail_dir / "recordings.parquet", index=False)
+    return detail_dir
 
 
 class TestDecisionDataset:
@@ -115,6 +152,13 @@ class TestDecisionDataLoader:
 
     def test_parse_csv_patient_sessions(self, tmp_csv):
         loader = DecisionDataLoader(tmp_csv)
+        assert loader.patients == ["P01", "P01", "P02", "P02"]
+        assert loader.sessions == ["S01", "S02", "S01", "S02"]
+
+    def test_parse_structured_artifact(self, structured_detail_dir):
+        loader = DecisionDataLoader(structured_detail_dir)
+        assert loader.labels == [1, 0, 1, 0]
+        assert loader.valid_lens == [0, 1, 2, 3, 4]
         assert loader.patients == ["P01", "P01", "P02", "P02"]
         assert loader.sessions == ["S01", "S02", "S01", "S02"]
 

@@ -1,0 +1,6 @@
+{
+  "test_acc": 0.9,
+  "ori_acc": 0.4635416666666667,
+  "argmax_acc": 0.5,
+  "mean_acc": 0.9
+}

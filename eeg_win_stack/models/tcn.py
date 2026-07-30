@@ -134,14 +134,14 @@ class TemporalBlock(nn.Module):
         )
         self.chomp1 = Chomp1d(padding)
         self.relu1 = nn.ReLU()
-        self.dropout1 = nn.Dropout2d(drop_prob)
+        self.dropout1 = nn.Dropout1d(drop_prob)
 
         self.conv2 = weight_norm(
             nn.Conv1d(n_outputs, n_outputs, kernel_size, stride=stride, padding=padding, dilation=dilation)
         )
         self.chomp2 = Chomp1d(padding)
         self.relu2 = nn.ReLU()
-        self.dropout2 = nn.Dropout2d(drop_prob)
+        self.dropout2 = nn.Dropout1d(drop_prob)
 
         self.downsample = nn.Conv1d(n_inputs, n_outputs, 1) if n_inputs != n_outputs else None
         self.relu = nn.ReLU()
