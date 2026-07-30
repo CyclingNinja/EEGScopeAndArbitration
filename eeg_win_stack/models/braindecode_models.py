@@ -121,7 +121,7 @@ class ShallowSMACNet(AbstractModel):
 
 
 @register("eegnetv4")
-class EEGNetV4(AbstractModel):
+class EEGNet(AbstractModel):
     """braindecode 1.x consolidated EEGNetv4 into a single ``EEGNet`` class."""
 
     def __init__(
@@ -151,68 +151,6 @@ class EEGNetV4(AbstractModel):
             kernel_length=kernel_length,
             third_kernel_size=third_kernel_size,
             drop_prob=drop_prob,
-        )
-
-    def forward(self, x):
-        return self._inner(x)
-
-
-@register("eegnetv1")
-class EEGNetV1(AbstractModel):
-    def __init__(
-        self,
-        n_channels,
-        n_classes,
-        input_window_samples,
-        final_conv_length="auto",
-        drop_prob=0.5,
-        pool_mode="max",
-        second_kernel_size=(2, 32),
-        third_kernel_size=(8, 4),
-    ):
-        super().__init__(n_channels, n_classes, input_window_samples)
-        self._inner = _EEGNetv1(
-            n_channels,
-            n_classes,
-            input_window_samples=input_window_samples,
-            final_conv_length=final_conv_length,
-            pool_mode=pool_mode,
-            second_kernel_size=second_kernel_size,
-            third_kernel_size=third_kernel_size,
-            drop_prob=drop_prob,
-        )
-
-    def forward(self, x):
-        return self._inner(x)
-
-
-@register("eegresnet")
-class EEGResNetWrapper(AbstractModel):
-    def __init__(
-        self,
-        n_channels,
-        n_classes,
-        input_window_samples,
-        final_conv_length="auto",
-        n_first_filters=10,
-        n_layers_per_block=2,
-        first_filter_length=3,
-        split_first_layer=True,
-        batch_norm_alpha=0.1,
-        batch_norm_epsilon=0.0001,
-    ):
-        super().__init__(n_channels, n_classes, input_window_samples)
-        self._inner = _EEGResNet(
-            n_channels,
-            n_classes,
-            input_window_samples,
-            final_conv_length,
-            n_first_filters=n_first_filters,
-            n_layers_per_block=n_layers_per_block,
-            first_filter_length=first_filter_length,
-            split_first_layer=split_first_layer,
-            batch_norm_alpha=batch_norm_alpha,
-            batch_norm_epsilon=batch_norm_epsilon,
         )
 
     def forward(self, x):
