@@ -3,6 +3,7 @@ mne_log_level = "WARNING"
 n_repetitions = 1
 random_state = 87
 n_jobs = 8
+use_azure_artifacts = false
 azure_artifact_root = "wasbs://mlflow-artifacts@medshedeegwinstack.blob.core.windows.net/experiments"
 experiment_name = "eeg_win_stack"
 
@@ -130,17 +131,17 @@ emb_dropout = 0.1
 [decision]
 # Second-stage decision model hyperparameters
 csv_path = "./training_detail.csv"
-csv_result_path = "./decision_result.csv"
+csv_result_path = "./target/decision_results.csv"
 learning_rate = 0.01
 weight_decay = 0.01
 batch_size = 64
 n_epochs = 60
 n_repetitions = 5
-histogram_length = 10
-use_histogram = true
+length = 10
+use_his = true
 use_hybrid = false
-use_adaptive_pool = false
-use_session_or_patients = "null"  # null for per-recording, "patients", or "sessions"
+adap_pool = false
+use_session_or_patients = ""  # empty for per-recording, "patients", or "sessions"
 hidden_layers = 0
 hidden_length = 5
 fix_testset = true

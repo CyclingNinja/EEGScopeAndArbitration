@@ -15,6 +15,29 @@ from eeg_win_stack.tools.dataset_splitting import DatasetSplitter
 from eeg_win_stack.training.trainer import Trainer, TrainingConfig
 
 
+def configure_mlflow(cfg):
+    mlflow.set_tracking_uri("mlruns")
+
+    experiment_name = cfg["run"]["experiment_name"]
+    use_azure_artifacts = cfg["run"].get("use_azure_artifacts", False)
+    experiment_name = experiment_name if use_azure_artifacts else f"{experiment_name}_local"
+
+    try:
+        if mlflow.get_experiment_by_name(experiment_name) is None:
+            if use_azure_artifacts:
+                mlflow.create_experiment(
+                    experiment_name,
+                    artifact_location=cfg["run"]["azure_artifact_root"],
+                )
+            else:
+                mlflow.create_experiment(experiment_name)
+
+        mlflow.set_experiment(experiment_name)
+    except Exception as exc:  # pragma: no cover - defensive fallback for Azure/auth issues
+        print(f"MLflow experiment setup skipped: {exc}")
+        mlflow.set_experiment(experiment_name)
+
+
 def main():
     cfg = load()
     training_cfg = cfg["training"]
@@ -76,32 +99,24 @@ def main():
 
     Path("metrics.json").write_text(json.dumps(metrics, indent=2))
 
-    mlflow.set_tracking_uri("mlruns")
-    # set_experiment auto-creates the experiment on the fly if it is missing, but
-    # cannot attach a custom artifact_location -- that is only honoured at creation
-    # time via create_experiment. So create it explicitly the first time to pin the
-    # configured artifact root, then just select it thereafter.
-    experiment_name = cfg["run"]["experiment_name"]
-    if mlflow.get_experiment_by_name(experiment_name) is None:
-        mlflow.create_experiment(
-            experiment_name,
-            artifact_location=cfg["run"]["azure_artifact_root"],
-        )
-    mlflow.set_experiment(experiment_name)
-    with mlflow.start_run():
-        mlflow.log_params(
-            {
-                "model": model_cfg["name"],
-                "learning_rate": training_cfg["learning_rate"],
-                "weight_decay": training_cfg["weight_decay"],
-                "batch_size": training_cfg["batch_size"],
-                "n_epochs": training_cfg["n_epochs"],
-                "split_way": split_cfg["split_way"],
-            }
-        )
-        mlflow.log_metrics(metrics)
-        latest_pt = max(Path("target/saved_models").glob("*.pt"), key=lambda p: p.stat().st_mtime)
-        mlflow.log_artifact(str(latest_pt), artifact_path="model")
+    try:
+        configure_mlflow(cfg)
+        with mlflow.start_run():
+            mlflow.log_params(
+                {
+                    "model": model_cfg["name"],
+                    "learning_rate": training_cfg["learning_rate"],
+                    "weight_decay": training_cfg["weight_decay"],
+                    "batch_size": training_cfg["batch_size"],
+                    "n_epochs": training_cfg["n_epochs"],
+                    "split_way": split_cfg["split_way"],
+                }
+            )
+            mlflow.log_metrics(metrics)
+            latest_pt = max(Path("target/saved_models").glob("*.pt"), key=lambda p: p.stat().st_mtime)
+            mlflow.log_artifact(str(latest_pt), artifact_path="model")
+    except Exception as exc:  # pragma: no cover - defensive fallback for Azure/auth issues
+        print(f"MLflow logging skipped because of an error: {exc}")
 
 
 if __name__ == "__main__":

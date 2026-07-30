@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import logging
+import csv
+import json
 from pathlib import Path
 
 from eeg_win_stack.api.jobs import decision_training
 from eeg_win_stack.config import load
-from eeg_win_stack.tools.decision_utils import save_decision_results
 
 log = logging.getLogger(__name__)
 
@@ -41,6 +42,9 @@ def main(
         Which block of results to use.
     """
     config = load()
+    decision_cfg = config.get("decision", {})
+    training_detail_csv = decision_cfg.get("csv_path", training_detail_csv)
+    results_csv = decision_cfg.get("csv_result_path", results_csv)
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -61,14 +65,25 @@ def main(
     # Log results
     results_path = Path(results_csv)
     results_path.parent.mkdir(parents=True, exist_ok=True)
-    for result in training_results:
-        log.info(f"Repetition {result['repetition']}: test_acc={result['test_acc']:.4f}")
-        save_decision_results(
-            None,  # Placeholder; would extend save function for dict format
-            results_path,
-            metadata=result,
-            append=True,
-        )
+    if training_results:
+        fieldnames = list(training_results[0].keys())
+        with results_path.open("w", newline="") as results_file:
+            writer = csv.DictWriter(results_file, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(training_results)
+
+        for result in training_results:
+            log.info(f"Repetition {result['repetition']}: test_acc={result['test_acc']:.4f}")
+
+        metric_names = ("test_acc", "ori_acc", "argmax_acc", "mean_acc")
+        metrics = {
+            name: sum(result[name] for result in training_results) / len(training_results)
+            for name in metric_names
+        }
+    else:
+        metrics = {}
+
+    Path("decision_metrics.json").write_text(json.dumps(metrics, indent=2))
 
 
 if __name__ == "__main__":

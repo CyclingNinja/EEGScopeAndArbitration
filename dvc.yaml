@@ -38,3 +38,16 @@ stages:
     metrics:
       - metrics.json:
           cache: false
+  
+  decision:
+    cmd: python -m eeg_win_stack.pipeline.decision
+    params:
+      - eeg_win_stack/config/params.toml:
+          - decision
+          - run
+    outs:
+      - target/decision_results.csv:
+          cache: false
+    metrics:
+      - decision_metrics.json:
+          cache: false

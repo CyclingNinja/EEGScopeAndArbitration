@@ -10,6 +10,8 @@ Requires braindecode (pinned 0.6.x on this branch); skipped where not installed.
 
 from __future__ import annotations
 
+import warnings
+
 import pytest
 
 torch = pytest.importorskip("torch")
@@ -84,3 +86,13 @@ def test_window_length_mismatch_still_collapses(last_layer_type):
     with torch.no_grad():
         out = model(torch.randn(8, 19, 6000))
     assert out.shape == (8, 2)
+
+
+def test_tcn_forward_does_not_emit_dropout2d_warning():
+    model = _make_tcn(6000, "max_pool")
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        with torch.no_grad():
+            model(torch.randn(2, 19, 6000))
+
+    assert not any("dropout2d" in str(w.message).lower() for w in caught)
