@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import csv
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -158,6 +159,45 @@ class Trainer:
         path = Path(params_path)
         path.parent.mkdir(parents=True, exist_ok=True)
         eeg_classifier.save_params(str(path))
+
+    #: Per-epoch metrics written to the training-history CSV, in column order.
+    HISTORY_COLUMNS = ("train_loss", "valid_loss", "train_accuracy", "valid_accuracy")
+
+    @staticmethod
+    def save_history(eeg_classifier, history_path, columns=HISTORY_COLUMNS) -> None:
+        """Write the per-epoch training loss/accuracy table to a CSV.
+
+        Mirrors the second-stage decision pipeline, which persists its
+        train/valid metrics to ``decision_results.csv``. This is the first-stage
+        equivalent: one row per epoch drawn from the fitted classifier's
+        :attr:`~skorch.NeuralNet.history`, with an ``epoch`` column followed by
+        whichever of ``columns`` skorch actually recorded (e.g. the ``valid_*``
+        columns are absent when training without a validation split).
+
+        Parameters
+        ----------
+        eeg_classifier : EEGClassifier
+            A fitted classifier whose ``history`` holds the per-epoch metrics.
+        history_path : str or pathlib.Path
+            Destination ``.csv`` file. Missing parent directories are created.
+        columns : sequence of str, optional
+            Candidate history keys to record, in output order. Defaults to
+            :attr:`HISTORY_COLUMNS`.
+        """
+        path = Path(history_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+
+        history = eeg_classifier.history
+        present = [c for c in columns if history and c in history[-1]] if history else []
+
+        with path.open("w", newline="") as history_file:
+            writer = csv.writer(history_file)
+            writer.writerow(["epoch", *present])
+            if not history:
+                return
+            column_values = {c: history[:, c] for c in present}
+            for row, epoch in enumerate(history[:, "epoch"]):
+                writer.writerow([epoch, *(column_values[c][row] for c in present)])
 
     def _build_classifier(self, model, train_set=None, valid_set=None) -> EEGClassifier:
         """Construct an unfitted EEGClassifier from the active configuration.
