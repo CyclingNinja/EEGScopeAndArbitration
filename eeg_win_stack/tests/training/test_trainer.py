@@ -167,3 +167,84 @@ class TestSaveLoad:
         mock_clf.initialize.assert_called_once()
         mock_clf.load_params.assert_called_once_with("/tmp/params.pt")
         assert result is mock_clf
+
+
+class FakeHistory:
+    """Minimal stand-in for a skorch ``History``.
+
+    Supports the two access patterns :meth:`Trainer.save_history` uses:
+    ``history[-1]`` (last-epoch row dict), ``history[:, col]`` (a column across
+    epochs), and truthiness/length by epoch count.
+    """
+
+    def __init__(self, rows):
+        self._rows = rows
+
+    def __len__(self):
+        return len(self._rows)
+
+    def __getitem__(self, key):
+        if isinstance(key, tuple):
+            row_slice, column = key
+            return [row[column] for row in self._rows[row_slice]]
+        return self._rows[key]
+
+
+def _read_csv(path):
+    import csv
+
+    with path.open(newline="") as history_file:
+        return list(csv.reader(history_file))
+
+
+class TestSaveHistory:
+    def _classifier(self, rows):
+        clf = MagicMock()
+        clf.history = FakeHistory(rows)
+        return clf
+
+    def test_writes_header_and_one_row_per_epoch(self, tmp_path):
+        clf = self._classifier(
+            [
+                {"epoch": 1, "train_loss": 0.9, "valid_loss": 1.0, "train_accuracy": 0.5, "valid_accuracy": 0.4},
+                {"epoch": 2, "train_loss": 0.7, "valid_loss": 0.8, "train_accuracy": 0.6, "valid_accuracy": 0.55},
+            ]
+        )
+        path = tmp_path / "history" / "result.csv"
+        Trainer.save_history(clf, path)
+
+        rows = _read_csv(path)
+        assert rows[0] == ["epoch", "train_loss", "valid_loss", "train_accuracy", "valid_accuracy"]
+        assert rows[1] == ["1", "0.9", "1.0", "0.5", "0.4"]
+        assert rows[2] == ["2", "0.7", "0.8", "0.6", "0.55"]
+
+    def test_creates_parent_directory(self, tmp_path):
+        clf = self._classifier(
+            [{"epoch": 1, "train_loss": 0.1, "valid_loss": 0.2, "train_accuracy": 0.9, "valid_accuracy": 0.8}]
+        )
+        path = tmp_path / "nested" / "dir" / "result.csv"
+        Trainer.save_history(clf, path)
+        assert path.exists()
+
+    def test_omits_columns_not_recorded(self, tmp_path):
+        # No validation split → skorch never logs valid_* keys.
+        clf = self._classifier(
+            [
+                {"epoch": 1, "train_loss": 0.9, "train_accuracy": 0.5},
+                {"epoch": 2, "train_loss": 0.7, "train_accuracy": 0.6},
+            ]
+        )
+        path = tmp_path / "result.csv"
+        Trainer.save_history(clf, path)
+
+        rows = _read_csv(path)
+        assert rows[0] == ["epoch", "train_loss", "train_accuracy"]
+        assert rows[1] == ["1", "0.9", "0.5"]
+
+    def test_empty_history_writes_header_only(self, tmp_path):
+        clf = self._classifier([])
+        path = tmp_path / "result.csv"
+        Trainer.save_history(clf, path)
+
+        rows = _read_csv(path)
+        assert rows == [["epoch"]]

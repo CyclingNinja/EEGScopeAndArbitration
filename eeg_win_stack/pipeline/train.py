@@ -80,6 +80,10 @@ def main():
     save_path = save_dir / (model_cfg["name"] + time.strftime("%Y-%m-%d_%H-%M-%S") + "params.pt")
     Trainer.save(eeg_classifier, save_path)
 
+    # Persist the per-epoch loss/accuracy table, mirroring the decision stage's
+    # results CSV so both training stages leave a comparable training record.
+    Trainer.save_history(eeg_classifier, cfg["output"]["log_path"])
+
 
 if __name__ == "__main__":
     main()
