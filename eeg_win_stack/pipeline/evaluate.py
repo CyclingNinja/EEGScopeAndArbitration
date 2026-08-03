@@ -34,7 +34,7 @@ def configure_mlflow(cfg):
                 mlflow.create_experiment(experiment_name)
 
         mlflow.set_experiment(experiment_name)
-    except Exception as exc:  # pragma: no cover - defensive fallback for Azure/auth issues
+    except Exception as exc:  #  noqa: BLE001 - defensive fallback for Azure/auth issues
         print(f"MLflow experiment setup skipped: {exc}")
         mlflow.set_experiment(experiment_name)
 
@@ -123,7 +123,7 @@ def main():
             mlflow.log_metrics(metrics)
             latest_pt = max(Path("target/saved_models").glob("*.pt"), key=lambda p: p.stat().st_mtime)
             mlflow.log_artifact(str(latest_pt), artifact_path="model")
-    except Exception as exc:  # pragma: no cover - defensive fallback for Azure/auth issues
+    except Exception as exc:  #  noqa: BLE001 - defensive fallback for Azure/auth issues
         print(f"MLflow logging skipped because of an error: {exc}")
 
 

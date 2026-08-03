@@ -364,4 +364,4 @@ def test_save_training_detail_writes_structured_artifact(tmp_path):
     assert len(windows_df) == 5
     assert len(recordings_df) == 3
     assert len(summary_df) == 3
-    assert set(["recording_id", "prob_abnormal", "target"]).issubset(windows_df.columns)
+    assert {"recording_id", "prob_abnormal", "target"}.issubset(windows_df.columns)
