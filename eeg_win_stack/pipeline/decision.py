@@ -77,8 +77,7 @@ def main(
 
         metric_names = ("test_acc", "ori_acc", "argmax_acc", "mean_acc")
         metrics = {
-            name: sum(result[name] for result in training_results) / len(training_results)
-            for name in metric_names
+            name: sum(result[name] for result in training_results) / len(training_results) for name in metric_names
         }
     else:
         metrics = {}

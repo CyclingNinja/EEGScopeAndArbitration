@@ -256,12 +256,10 @@ def save_training_detail(
             "legacy_csv": "legacy_training_detail.csv",
         },
         "counts": {
-            "n_windows": int(len(windows_df)),
-            "n_recordings": int(len(recordings_df)),
+            "n_windows": len(windows_df),
+            "n_recordings": len(recordings_df),
             "n_patients": int(recordings_df["patient_id"].nunique()) if not recordings_df.empty else 0,
-            "n_sessions": int(
-                recordings_df[["patient_id", "session_id"]].drop_duplicates().shape[0]
-            )
+            "n_sessions": int(recordings_df[["patient_id", "session_id"]].drop_duplicates().shape[0])
             if not recordings_df.empty
             else 0,
         },
@@ -284,10 +282,7 @@ def _normalize_splits(datasets: list) -> list[tuple[str, object]]:
         return [(str(name), ds) for name, ds in datasets]
 
     split_names = ["train", "valid", "test"]
-    return [
-        (split_names[i] if i < len(split_names) else f"split_{i}", ds)
-        for i, ds in enumerate(datasets)
-    ]
+    return [(split_names[i] if i < len(split_names) else f"split_{i}", ds) for i, ds in enumerate(datasets)]
 
 
 def _split_path_parts(path_value: str) -> tuple[str, str]:
@@ -312,7 +307,7 @@ def _build_training_detail_tables(
         probs = np.exp(np.asarray(eeg_classifier.predict_proba(dataset)[:, 1])).tolist()
         starts = find_all_zero(metadata["i_window_in_trial"].tolist())
         if not starts or starts[0] != 0:
-            starts = [0] + starts
+            starts = [0, *starts]
 
         description_paths = [row[0] for row in np.asarray(dataset.description.loc[:, ["path"]]).tolist()]
 
