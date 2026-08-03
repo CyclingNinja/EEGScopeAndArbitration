@@ -17,7 +17,7 @@ stages:
           save_recordings_path: ./target/saved_recordings
           save_windows: true
           save_windows_path: ./target/saved_windows
-          load_saved_recordings: true
+          load_saved_recordings: false
           load_saved_windows: false
           relabel_datasets: ''
           relabel_labels: ''
@@ -40,7 +40,7 @@ stages:
             wasbs://mlflow-artifacts@medshedeegwinstack.blob.core.windows.net/experiments
           experiment_name: eeg_win_stack
         windowing:
-          window_len_s: 60
+          window_len_s: 30
           multiple: 0
           tmin: 300
           sec_to_cut: 60
@@ -68,17 +68,17 @@ stages:
     outs:
     - path: target/saved_windows
       hash: md5
-      md5: f7402906fa92a5cce6e74ac91a532ffb.dir
-      size: 869345852
-      nfiles: 400
+      md5: 7e7bcded490ab339a8bfd444f7bb0bfe.dir
+      size: 26496881390
+      nfiles: 11972
   train:
     cmd: uv run python -m eeg_win_stack.pipeline.train
     deps:
     - path: ./target/saved_windows
       hash: md5
-      md5: f7402906fa92a5cce6e74ac91a532ffb.dir
-      size: 869345852
-      nfiles: 400
+      md5: 7e7bcded490ab339a8bfd444f7bb0bfe.dir
+      size: 26496881390
+      nfiles: 11972
     params:
       eeg_win_stack/config/params.toml:
         model:
@@ -157,22 +157,22 @@ stages:
     outs:
     - path: target/saved_models
       hash: md5
-      md5: 3f7069a04735419ef1814e07f0923ea8.dir
-      size: 2536092
-      nfiles: 2
+      md5: 94c2bc67207a95ca430348540e0e5752.dir
+      size: 1268046
+      nfiles: 1
   evaluate:
     cmd: uv run python -m eeg_win_stack.pipeline.evaluate
     deps:
     - path: .\target\saved_models
       hash: md5
-      md5: 3f7069a04735419ef1814e07f0923ea8.dir
-      size: 2536092
-      nfiles: 2
+      md5: 94c2bc67207a95ca430348540e0e5752.dir
+      size: 1268046
+      nfiles: 1
     - path: .\target\saved_windows
       hash: md5
-      md5: f7402906fa92a5cce6e74ac91a532ffb.dir
-      size: 869345852
-      nfiles: 400
+      md5: 7e7bcded490ab339a8bfd444f7bb0bfe.dir
+      size: 26496881390
+      nfiles: 11972
     params:
       eeg_win_stack/config/params.toml:
         model:
@@ -241,20 +241,20 @@ stages:
     outs:
     - path: metrics.json
       hash: md5
-      md5: d517b6ae7e078a7e535ee475367243bb
-      size: 136
+      md5: f849a23491f8da58d3a4dbda2aeeb33d
+      size: 137
     - path: target/training_detail
       hash: md5
-      md5: 7e6a7d71c08994a6a68857e8f1e975bd.dir
-      size: 107746
+      md5: d2f087fd597e289c5828bad8fe5c67aa.dir
+      size: 5287793
       nfiles: 5
   decision:
     cmd: uv run python -m eeg_win_stack.pipeline.decision
     deps:
     - path: target/training_detail
       hash: md5
-      md5: 7e6a7d71c08994a6a68857e8f1e975bd.dir
-      size: 107746
+      md5: d2f087fd597e289c5828bad8fe5c67aa.dir
+      size: 5287793
       nfiles: 5
     params:
       eeg_win_stack/config/params.toml:
@@ -293,9 +293,9 @@ stages:
     outs:
     - path: decision_metrics.json
       hash: md5
-      md5: 07db449a5c721344e33ff1bb413c00f5
-      size: 99
+      md5: 6aa74883c85c1ac0b6e66e51960b3a4b
+      size: 130
     - path: target/decision_results.csv
       hash: md5
-      md5: 9ce35fdaac92e02ad62a006005da6d56
-      size: 439
+      md5: 0e8ea60a184ef02b40c29c288cac3d28
+      size: 585
