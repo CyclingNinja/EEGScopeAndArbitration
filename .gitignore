@@ -30,6 +30,8 @@ hear21passt/pre_train/
 *.xlsx
 *.txt
 
+# AI stuff
+AGENTS.md
 
 
 #### Everything below here is a generic pycharm gitignore
