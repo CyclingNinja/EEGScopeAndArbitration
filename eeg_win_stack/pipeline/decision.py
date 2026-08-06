@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
-import logging
 import csv
 import json
 from pathlib import Path
 
 from eeg_win_stack.api.jobs import decision_training
 from eeg_win_stack.config import load
+from eeg_win_stack.tools.logger import Logger, get_logger
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 
 def main(
@@ -42,13 +42,14 @@ def main(
         Which block of results to use.
     """
     config = load()
+    Logger.from_config(config)
     decision_cfg = config.get("decision", {})
     training_detail_path = decision_cfg.get("detail_path", decision_cfg.get("csv_path", training_detail_path))
     results_csv = decision_cfg.get("csv_result_path", results_csv)
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    log.info(f"Training decision models from {training_detail_path}")
+    log.info("Training decision models from %s", training_detail_path)
 
     # Train
     training_results = decision_training(
@@ -73,7 +74,7 @@ def main(
             writer.writerows(training_results)
 
         for result in training_results:
-            log.info(f"Repetition {result['repetition']}: test_acc={result['test_acc']:.4f}")
+            log.info("Repetition %s: test_acc=%.4f", result["repetition"], result["test_acc"])
 
         metric_names = ("test_acc", "ori_acc", "argmax_acc", "mean_acc")
         metrics = {
@@ -88,5 +89,4 @@ def main(
 if __name__ == "__main__":
     import sys
 
-    logging.basicConfig(level=logging.INFO)
     main(*sys.argv[1:])

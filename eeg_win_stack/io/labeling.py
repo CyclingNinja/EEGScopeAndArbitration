@@ -5,14 +5,17 @@ from __future__ import annotations
 import csv
 from pathlib import Path
 
+from eeg_win_stack.tools.logger import get_logger
 from eeg_win_stack.tools.paths import read_all_file_names
+
+log = get_logger(__name__)
 
 
 def relabel(dataset, label_path, dataset_folder):
     des = dataset.description
     des_path = list(des["path"])
     des_file = [Path(i).name for i in des_path]
-    print("des_file", des_file)
+    log.debug("relabelling against %d described recordings", len(des_file))
 
     all_labelled_tueg_file_names = []
     tueg_labels = []
@@ -47,7 +50,8 @@ def relabel(dataset, label_path, dataset_folder):
                 if (id_ in Path(ff).name and Path(ff).name in des_file)
             ]
 
-    print("all_labelled_TUEG_file_names:", all_labelled_tueg_file_names)
+    log.info("matched %d confidently labelled recordings in %s", len(all_labelled_tueg_file_names), label_path)
+    log.debug("matched recordings: %s", all_labelled_tueg_file_names)
 
     if "pathological" not in list(des):
         des["pathological"] = [2] * len(des["age"])

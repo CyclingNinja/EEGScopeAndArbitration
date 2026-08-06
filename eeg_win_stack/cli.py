@@ -9,7 +9,8 @@ command the remote backends invoke.
 
 Invoke as ``python -m eeg_win_stack <command> ...`` or via the ``eeg-win-stack``
 console script. Results print to stdout as JSON so callers (a shell, a remote
-runner) can parse them; user-facing errors print to stderr with a non-zero exit.
+runner) can parse them; user-facing errors and any log output from the run go to
+stderr, errors with a non-zero exit.
 """
 
 from __future__ import annotations
@@ -21,6 +22,9 @@ from pathlib import Path
 
 from eeg_win_stack.api.backends import Job, JobKind, get_backend
 from eeg_win_stack.config import load as load_config
+from eeg_win_stack.tools.logger import Logger, get_logger
+
+log = get_logger(__name__)
 
 
 def cmd_train(args: argparse.Namespace) -> dict:
@@ -101,10 +105,13 @@ def main(argv: list[str] | None = None) -> int:
     """
     parser = build_parser()
     args = parser.parse_args(argv)
+    # Bare messages on stderr: for a CLI the text is the product, so timestamps
+    # and logger names would just be noise in front of it.
+    Logger.configure(fmt="%(message)s")
     try:
         result = args.func(args)
     except (NotImplementedError, ValueError) as exc:
-        print(f"error: {exc}", file=sys.stderr)
+        log.error("error: %s", exc)
         return 1
     json.dump(result, sys.stdout, indent=2)
     sys.stdout.write("\n")

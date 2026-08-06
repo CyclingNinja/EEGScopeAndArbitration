@@ -6,7 +6,10 @@ from pathlib import Path
 
 import numpy as np
 
+from eeg_win_stack.tools.logger import get_logger
 from eeg_win_stack.tools.paths import get_full_filelist
+
+log = get_logger(__name__)
 
 
 def remove_tuab_from_dataset(ds, tuab_loc):
@@ -79,7 +82,7 @@ def drop_duplicates(ds1, ds2, attribute):
         else:
             remove_num += 1
 
-    print("remove_num:", remove_num)
+    log.info("dropped %d of %d recordings duplicated by %s", remove_num, len(ds2.description), attribute)
     splits = ds2.split(split_ids)
     return splits["0"]
 
@@ -127,8 +130,7 @@ def exclude_by_undefined_pathology(dataset):
     """
     split_ids = []
     for d_i, d in enumerate(dataset.description["pathological"]):
-        print(d_i)
-        print(d)
+        log.debug("recording %d pathology label: %r", d_i, d)
         if d is True or d is False:
             split_ids.append(d_i)
 
@@ -142,7 +144,7 @@ def exclude_by_name(ds, names):
         if Path(d).name not in names:
             split_ids.append(d_i)
         else:
-            print("a overlap")
+            log.debug("excluding %s: name overlaps the exclusion list", Path(d).name)
 
     splits = ds.split(split_ids)
     return splits["0"]
@@ -177,4 +179,4 @@ def select_by_channel(ds, channels):
 
 def check_inf(ds):
     for d_i, d in enumerate(ds.datasets):
-        print(d.raw.info)
+        log.info("recording %d info: %s", d_i, d.raw.info)
