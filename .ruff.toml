@@ -48,9 +48,6 @@ extend-ignore = [
   "RUF012", # Mutable class attributes should be annotated with `typing.ClassVar`
   "RUF013", # PEP 484 prohibits implicit `Optional`
   "RUF015", # Prefer `next(iter(...))` over single element slice
-  # flake8-print (T20)
-  "T201", # TEMP: prints used as diagnostics; remove this ignore once
-          # structured logging lands (refactor backlog).
   # pandas-vet (PD)
   "PD101", # nunique() constant-check is readable; the "efficient"
            # alternatives are less clear and type-fragile here.
