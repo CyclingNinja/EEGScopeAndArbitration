@@ -187,7 +187,10 @@ class Logger:
 
         formatter = logging.Formatter(fmt, datefmt)
         if console:
-            _install(root, _CONSOLE_KEY, lambda: logging.StreamHandler(stream or sys.stderr), formatter)
+            # No explicit stream => _StderrHandler, which looks sys.stderr up at
+            # emit time instead of pinning the object captured during import.
+            factory = (lambda: logging.StreamHandler(stream)) if stream is not None else _StderrHandler
+            _install(root, _CONSOLE_KEY, factory, formatter)
         if log_file is not None:
             path = Path(log_file)
             path.parent.mkdir(parents=True, exist_ok=True)
