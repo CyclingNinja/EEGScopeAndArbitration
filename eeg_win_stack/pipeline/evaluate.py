@@ -14,6 +14,9 @@ from eeg_win_stack.pipeline.validation import validate_window_length
 from eeg_win_stack.tools.dataset_splitting import DatasetSplitter
 from eeg_win_stack.tools.decision_utils import save_training_detail
 from eeg_win_stack.training.trainer import Trainer, TrainingConfig
+from eeg_win_stack.tools.logger import Logger, get_logger
+
+log = get_logger(__name__)
 
 
 def configure_mlflow(cfg):
@@ -35,12 +38,13 @@ def configure_mlflow(cfg):
 
         mlflow.set_experiment(experiment_name)
     except Exception as exc:  #  noqa: BLE001 - defensive fallback for Azure/auth issues
-        print(f"MLflow experiment setup skipped: {exc}")
+        log.warning("MLflow experiment setup skipped: %s", exc)
         mlflow.set_experiment(experiment_name)
 
 
 def main():
     cfg = load()
+    Logger.from_config(cfg)
     training_cfg = cfg["training"]
     model_cfg = cfg["model"]
     split_cfg = cfg["split"]
@@ -124,7 +128,7 @@ def main():
             latest_pt = max(Path("target/saved_models").glob("*.pt"), key=lambda p: p.stat().st_mtime)
             mlflow.log_artifact(str(latest_pt), artifact_path="model")
     except Exception as exc:  #  noqa: BLE001 - defensive fallback for Azure/auth issues
-        print(f"MLflow logging skipped because of an error: {exc}")
+        log.warning("MLflow logging skipped because of an error: %s", exc)
 
 
 if __name__ == "__main__":

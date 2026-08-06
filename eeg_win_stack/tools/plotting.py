@@ -5,6 +5,10 @@ from matplotlib.lines import Line2D
 from matplotlib import cm
 import argparse
 
+from eeg_win_stack.tools.logger import get_logger
+
+log = get_logger(__name__)
+
 default_columns_to_ignore = [
     "tueg",
     "saved_windows_data",
@@ -107,7 +111,7 @@ def validation_graph(eeg_classifier):
     )
     # get percent of misclass for better visual comparison to loss
     df = df.assign(train_misclass=100 - 100 * df.train_accuracy, valid_misclass=100 - 100 * df.valid_accuracy)
-    print(df)
+    log.debug("validation curve data:\n%s", df)
     plt.style.use("seaborn")
     _, ax1 = plt.subplots(figsize=(8, 3))
     df.loc[:, ["train_loss", "valid_loss"]].plot(

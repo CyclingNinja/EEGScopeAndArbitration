@@ -6,7 +6,10 @@ import mne
 import numpy as np
 from braindecode.datasets import create_from_X_y
 
+from eeg_win_stack.tools.logger import get_logger
 from eeg_win_stack.tools.paths import get_full_filelist
+
+log = get_logger(__name__)
 
 
 class EEGLoader:
@@ -61,7 +64,8 @@ class EEGLoader:
 
     def load_brainvision_as_windows(self):
         paths = get_full_filelist(self.data_folder, ".vhdr")
-        print(paths)
+        log.info("found %d BrainVision recordings under %s", len(paths), self.data_folder)
+        log.debug("BrainVision recordings: %s", paths)
 
         parts = [
             self._channel_processing(mne.io.read_raw_brainvision(path, preload=True, verbose=False)) for path in paths

@@ -8,6 +8,7 @@ import torch
 from braindecode.datautil import load_concat_dataset
 
 from eeg_win_stack.config import load
+from eeg_win_stack.tools.logger import Logger
 from eeg_win_stack.models import ModelFactory
 from eeg_win_stack.pipeline.validation import validate_window_length
 from eeg_win_stack.tools.dataset_splitting import DatasetSplitter
@@ -16,6 +17,7 @@ from eeg_win_stack.training.trainer import Trainer, TrainingConfig
 
 def main():
     cfg = load()
+    Logger.from_config(cfg)
     training_cfg = cfg["training"]
     model_cfg = cfg["model"]
     split_cfg = cfg["split"]

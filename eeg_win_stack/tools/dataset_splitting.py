@@ -15,7 +15,10 @@ from braindecode.datasets import BaseConcatDataset
 from sklearn.model_selection import train_test_split
 
 from eeg_win_stack.tools.filters import drop_duplicates
+from eeg_win_stack.tools.logger import get_logger
 from eeg_win_stack.tools.paths import findall
+
+log = get_logger(__name__)
 
 
 def _is_split_sentinel(value) -> bool:
@@ -228,10 +231,13 @@ class DatasetSplitter:
         train_set, valid_set, test_set = strategies[split_way]()
         train_set = self._remove_attribute_check(train_set, test_set)
 
-        print("train_set:")
-        print(train_set.description)
-        print("valid_set:")
-        print(valid_set.description)
-        print("test_set:")
-        print(test_set.description)
+        log.info(
+            "split %r produced train=%d valid=%d test=%d recordings",
+            split_way,
+            len(train_set.description),
+            len(valid_set.description),
+            len(test_set.description),
+        )
+        for name, split in (("train", train_set), ("valid", valid_set), ("test", test_set)):
+            log.debug("%s_set:\n%s", name, split.description)
         return train_set, valid_set, test_set

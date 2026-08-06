@@ -3,11 +3,13 @@
 import mne
 
 from eeg_win_stack.config import load
+from eeg_win_stack.tools.logger import Logger
 from eeg_win_stack.io.dataset_builder import DatasetBuilder
 
 
 def main():
     cfg = load()
+    Logger.from_config(cfg)
     data_cfg = cfg["data"]
     preprocessing_cfg = cfg["preprocessing"]
     windowing_cfg = cfg["windowing"]
