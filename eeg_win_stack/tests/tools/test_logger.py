@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import io
 import logging
+import sys
 
 import pytest
 
@@ -56,6 +58,38 @@ def test_messages_reach_the_configured_stream(capsys):
     assert "loaded 12 recordings" in err
     assert "eeg_win_stack.io" in err
     assert "cache hit" in err
+
+
+def test_console_follows_stderr_rebound_after_setup():
+    # Modules build their logger at import time, so the console handler exists
+    # before pytest's capsys (or a notebook, or redirect_stderr) swaps
+    # sys.stderr. Resolving the stream at emit time is what keeps that output
+    # visible; pinning it silently dropped the CLI's error line under capsys.
+    log = get_logger("io")  # handler installed against the current stderr
+    replacement = io.StringIO()
+    original, sys.stderr = sys.stderr, replacement
+    try:
+        log.warning("after rebinding")
+    finally:
+        sys.stderr = original
+
+    assert "after rebinding" in replacement.getvalue()
+
+
+def test_reconfiguring_keeps_writing_to_the_live_stderr():
+    # What cli.main() does: a logger already exists from import, then the entry
+    # point re-configures the format. The refreshed handler must still follow
+    # the current stderr.
+    log = get_logger("cli")
+    Logger.configure(fmt="%(message)s")
+    replacement = io.StringIO()
+    original, sys.stderr = sys.stderr, replacement
+    try:
+        log.error("error: %s", "unknown backend 'nope'")
+    finally:
+        sys.stderr = original
+
+    assert replacement.getvalue() == "error: unknown backend 'nope'\n"
 
 
 def test_level_filters_below_threshold(capsys):
