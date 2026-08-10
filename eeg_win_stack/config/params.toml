@@ -77,7 +77,10 @@ checkpoint_dir = ""
 
 [output]
 log_path = "./target/result.csv"
-saved_models_path = "./target/saved_models"
+# Each stage owns its own subdirectory: DVC refuses overlapping stage outputs,
+# so first-stage and decision-stage models cannot share one directory.
+saved_models_path = "./target/saved_models/window_model"
+decision_models_path = "./target/saved_models/decision_model"
 training_detail_path = "./target/training_detail"
 plot_result = false
 train_whole_dataset_again = true
@@ -137,9 +140,13 @@ emb_dropout = 0.1
 
 [decision]
 # Second-stage decision model hyperparameters
+# backend picks the learner: "mlp" (the torch models) or "xgboost" (gradient
+# boosting over the same features). Unrelated to the API execution backends.
+backend = "mlp"
 detail_path = "./target/training_detail"
 csv_path = "./target/training_detail"  # legacy key consumed as fallback
 csv_result_path = "./target/decision_results.csv"
+metrics_path = "./target/decision_metrics.json"
 learning_rate = 0.01
 weight_decay = 0.01
 batch_size = 64
@@ -159,3 +166,19 @@ start_row = 1
 n_rows = 4
 row_gap = 4
 block = 0
+
+[decision.xgboost]
+# Consumed only when decision.backend = "xgboost"; passed straight to
+# xgboost.XGBClassifier. Sweep these with `dvc exp run -S`.
+max_depth = 6
+learning_rate = 0.05
+n_estimators = 300
+subsample = 0.85
+colsample_bytree = 0.7
+min_child_weight = 1
+gamma = 0.0
+reg_alpha = 0.0
+reg_lambda = 1.0
+early_stopping_rounds = 30
+n_jobs = -1
+random_state = 87

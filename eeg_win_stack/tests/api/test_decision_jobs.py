@@ -7,6 +7,7 @@ import csv
 import pytest
 import torch
 
+from eeg_win_stack.api.decision_artifacts import DecisionArtifact
 from eeg_win_stack.api.jobs import decision_evaluation, decision_training
 from eeg_win_stack.models.decision_models import HistogramModel
 
@@ -70,27 +71,36 @@ def decision_config():
     }
 
 
+@pytest.fixture
+def xgboost_config(decision_config):
+    """The same decision config, switched to a deliberately tiny booster."""
+    config = {"decision": dict(decision_config["decision"])}
+    config["decision"]["backend"] = "xgboost"
+    config["decision"]["xgboost"] = {"n_estimators": 5, "max_depth": 2, "random_state": 0}
+    return config
+
+
 class TestRunDecisionTraining:
     """Tests for run_decision_training function."""
 
-    def test_returns_list(self, sample_csv_path, decision_config):
+    def test_returns_list(self, sample_csv_path, decision_config, tmp_path):
         """Should return list of result dicts."""
         results = decision_training(
             decision_config,
             training_detail_csv_path=sample_csv_path,
-            output_dir="/tmp",
+            output_dir=tmp_path,
             n_repetitions=1,
         )
 
         assert isinstance(results, list)
         assert len(results) == 1
 
-    def test_result_structure(self, sample_csv_path, decision_config):
+    def test_result_structure(self, sample_csv_path, decision_config, tmp_path):
         """Each result should have expected keys."""
         results = decision_training(
             decision_config,
             training_detail_csv_path=sample_csv_path,
-            output_dir="/tmp",
+            output_dir=tmp_path,
             n_repetitions=1,
         )
 
@@ -103,12 +113,12 @@ class TestRunDecisionTraining:
         assert "argmax_acc" in result
         assert "mean_acc" in result
 
-    def test_multiple_repetitions(self, sample_csv_path, decision_config):
+    def test_multiple_repetitions(self, sample_csv_path, decision_config, tmp_path):
         """Should support multiple repetitions."""
         results = decision_training(
             decision_config,
             training_detail_csv_path=sample_csv_path,
-            output_dir="/tmp",
+            output_dir=tmp_path,
             n_repetitions=2,
         )
 
@@ -116,12 +126,12 @@ class TestRunDecisionTraining:
         assert results[0]["repetition"] == 0
         assert results[1]["repetition"] == 1
 
-    def test_metrics_are_floats(self, sample_csv_path, decision_config):
+    def test_metrics_are_floats(self, sample_csv_path, decision_config, tmp_path):
         """All metrics should be floats."""
         results = decision_training(
             decision_config,
             training_detail_csv_path=sample_csv_path,
-            output_dir="/tmp",
+            output_dir=tmp_path,
             n_repetitions=1,
         )
 
@@ -131,12 +141,12 @@ class TestRunDecisionTraining:
         assert isinstance(result["train_loss"], float)
         assert isinstance(result["valid_loss"], float)
 
-    def test_metrics_in_valid_range(self, sample_csv_path, decision_config):
+    def test_metrics_in_valid_range(self, sample_csv_path, decision_config, tmp_path):
         """Metrics should be in [0, 1] range."""
         results = decision_training(
             decision_config,
             training_detail_csv_path=sample_csv_path,
-            output_dir="/tmp",
+            output_dir=tmp_path,
             n_repetitions=1,
         )
 
@@ -148,12 +158,12 @@ class TestRunDecisionTraining:
         assert result["train_loss"] >= 0
         assert result["valid_loss"] >= 0
 
-    def test_custom_csv_config(self, sample_csv_path, decision_config):
+    def test_custom_csv_config(self, sample_csv_path, decision_config, tmp_path):
         """Should accept custom CSV parsing config."""
         results = decision_training(
             decision_config,
             training_detail_csv_path=sample_csv_path,
-            output_dir="/tmp",
+            output_dir=tmp_path,
             start_row=1,
             n_rows=4,
             row_gap=4,
@@ -163,19 +173,19 @@ class TestRunDecisionTraining:
 
         assert len(results) == 1
 
-    def test_device_auto_detection(self, sample_csv_path, decision_config):
+    def test_device_auto_detection(self, sample_csv_path, decision_config, tmp_path):
         """Should handle device auto-detection when device=None."""
         decision_config["decision"]["device"] = None
         results = decision_training(
             decision_config,
             training_detail_csv_path=sample_csv_path,
-            output_dir="/tmp",
+            output_dir=tmp_path,
             n_repetitions=1,
         )
 
         assert len(results) == 1
 
-    def test_histogram_model_selected(self, sample_csv_path, decision_config):
+    def test_histogram_model_selected(self, sample_csv_path, decision_config, tmp_path):
         """Should select HistogramModel when use_his=True."""
         decision_config["decision"]["use_his"] = True
         decision_config["decision"]["use_session_or_patients"] = None
@@ -183,14 +193,14 @@ class TestRunDecisionTraining:
         results = decision_training(
             decision_config,
             training_detail_csv_path=sample_csv_path,
-            output_dir="/tmp",
+            output_dir=tmp_path,
             n_repetitions=1,
         )
 
         assert len(results) == 1
         assert results[0]["test_acc"] >= 0
 
-    def test_decision_model_selected(self, sample_csv_path, decision_config):
+    def test_decision_model_selected(self, sample_csv_path, decision_config, tmp_path):
         """Should select DecisionModel when use_his=False."""
         decision_config["decision"]["use_his"] = False
         decision_config["decision"]["use_session_or_patients"] = None
@@ -198,26 +208,26 @@ class TestRunDecisionTraining:
         results = decision_training(
             decision_config,
             training_detail_csv_path=sample_csv_path,
-            output_dir="/tmp",
+            output_dir=tmp_path,
             n_repetitions=1,
         )
 
         assert len(results) == 1
 
-    def test_aggregation_by_patients(self, sample_csv_path, decision_config):
+    def test_aggregation_by_patients(self, sample_csv_path, decision_config, tmp_path):
         """Should aggregate by patients when specified."""
         decision_config["decision"]["use_session_or_patients"] = "patients"
 
         results = decision_training(
             decision_config,
             training_detail_csv_path=sample_csv_path,
-            output_dir="/tmp",
+            output_dir=tmp_path,
             n_repetitions=1,
         )
 
         assert len(results) == 1
 
-    def test_training_converges(self, sample_csv_path, decision_config):
+    def test_training_converges(self, sample_csv_path, decision_config, tmp_path):
         """Training should show decreasing loss over epochs."""
         # Use more epochs to see convergence
         decision_config["decision"]["n_epochs"] = 5
@@ -225,7 +235,7 @@ class TestRunDecisionTraining:
         results = decision_training(
             decision_config,
             training_detail_csv_path=sample_csv_path,
-            output_dir="/tmp",
+            output_dir=tmp_path,
             n_repetitions=1,
         )
 
@@ -327,12 +337,68 @@ class TestRunDecisionEvaluation:
         assert "test_acc" in result
 
 
-class TestDecisionIntegration:
-    """Integration tests combining training and evaluation."""
+class TestXGBoostBackend:
+    """The gradient-boosted backend, selected by ``[decision] backend``."""
 
-    def test_train_then_evaluate(self, sample_csv_path, decision_config, tmp_path):
-        """Should be able to train, save, then evaluate."""
-        # Train
+    def test_produces_the_same_result_schema(self, sample_csv_path, xgboost_config, tmp_path):
+        """Backends are interchangeable: same keys, same metric ranges."""
+        results = decision_training(
+            xgboost_config,
+            training_detail_csv_path=sample_csv_path,
+            output_dir=tmp_path,
+            n_repetitions=1,
+        )
+
+        result = results[0]
+        for key in ("repetition", "train_loss", "valid_loss", "test_acc", "ori_acc", "argmax_acc", "mean_acc"):
+            assert key in result
+        for key in ("test_acc", "ori_acc", "argmax_acc", "mean_acc"):
+            assert 0 <= result[key] <= 1
+        assert result["train_loss"] >= 0
+
+    def test_saves_a_booster_artifact(self, sample_csv_path, xgboost_config, tmp_path):
+        decision_training(
+            xgboost_config,
+            training_detail_csv_path=sample_csv_path,
+            output_dir=tmp_path,
+            n_repetitions=1,
+        )
+
+        boosters = list(tmp_path.glob("decision_xgboost_*.json"))
+        manifests = list(tmp_path.glob("decision_xgboost_*.manifest.json"))
+        assert len(manifests) == 1
+        # The manifest is itself a .json, so the booster is the other one.
+        assert len(boosters) == 2
+
+    def test_supports_aggregation(self, sample_csv_path, xgboost_config, tmp_path):
+        xgboost_config["decision"]["use_session_or_patients"] = "sessions"
+
+        results = decision_training(
+            xgboost_config,
+            training_detail_csv_path=sample_csv_path,
+            output_dir=tmp_path,
+            n_repetitions=1,
+        )
+
+        assert len(results) == 1
+
+    def test_single_class_split_reports_clearly(self, sample_csv_path, xgboost_config, tmp_path):
+        """Four patients split 70/30 leave one class in training — say so plainly."""
+        xgboost_config["decision"]["use_session_or_patients"] = "patients"
+
+        with pytest.raises(ValueError, match="single class"):
+            decision_training(
+                xgboost_config,
+                training_detail_csv_path=sample_csv_path,
+                output_dir=tmp_path,
+                n_repetitions=1,
+            )
+
+
+class TestDecisionArtifactPersistence:
+    """Training persists the best repetition alongside a provenance manifest."""
+
+    def test_saves_torch_state_dict_and_manifest(self, sample_csv_path, decision_config, tmp_path):
         results = decision_training(
             decision_config,
             training_detail_csv_path=sample_csv_path,
@@ -340,7 +406,68 @@ class TestDecisionIntegration:
             n_repetitions=1,
         )
 
-        # Manually save the model from training
-        # (In real scenario, this would be persisted by run_decision_training)
-        # For this test, we'll just verify training succeeded
-        assert results[0]["test_acc"] >= 0
+        model_id = results[0]["saved_model_id"]
+        assert model_id.startswith("decision_mlp_")
+
+        artifact = DecisionArtifact.load(model_id, models_dir=tmp_path)
+        assert artifact.backend == "mlp"
+        assert artifact.model_path.suffix == ".pt"
+        assert artifact.manifest["features"]["length"] == 10
+        assert artifact.manifest["metrics"]["test_acc"] == results[0]["test_acc"]
+
+    def test_saves_only_the_best_repetition(self, sample_csv_path, decision_config, tmp_path):
+        results = decision_training(
+            decision_config,
+            training_detail_csv_path=sample_csv_path,
+            output_dir=tmp_path,
+            n_repetitions=3,
+        )
+
+        saved = [result["saved_model_id"] for result in results if result["saved_model_id"]]
+        assert len(saved) == 1
+        assert len(list(tmp_path.glob("*.manifest.json"))) == 1
+
+        best = max(results, key=lambda result: (result["test_acc"], -result["valid_loss"]))
+        assert best["saved_model_id"] == saved[0]
+
+    def test_rebuilt_model_reproduces_predictions(self, sample_csv_path, decision_config, tmp_path):
+        """A reloaded artifact scores identically to the model that was saved."""
+        results = decision_training(
+            decision_config,
+            training_detail_csv_path=sample_csv_path,
+            output_dir=tmp_path,
+            n_repetitions=1,
+        )
+        artifact = DecisionArtifact.load(results[0]["saved_model_id"], models_dir=tmp_path)
+
+        model = artifact.build_model()
+
+        assert isinstance(model, HistogramModel)
+        assert not model.training
+
+
+class TestDecisionIntegration:
+    """Integration tests combining training and evaluation."""
+
+    @pytest.mark.parametrize("backend", ["mlp", "xgboost"])
+    def test_train_then_evaluate(self, sample_csv_path, decision_config, xgboost_config, tmp_path, backend):
+        """Train, persist, then re-load the artifact through decision_evaluation."""
+        config = decision_config if backend == "mlp" else xgboost_config
+
+        results = decision_training(
+            config,
+            training_detail_csv_path=sample_csv_path,
+            output_dir=tmp_path,
+            n_repetitions=1,
+        )
+        artifact = DecisionArtifact.load(results[0]["saved_model_id"], models_dir=tmp_path)
+
+        evaluation = decision_evaluation(
+            config,
+            training_detail_csv_path=sample_csv_path,
+            model_path=artifact.model_path,
+        )
+
+        assert artifact.backend == backend
+        assert 0 <= evaluation["test_acc"] <= 1
+        assert len(evaluation["confusion_matrix"]) == 2

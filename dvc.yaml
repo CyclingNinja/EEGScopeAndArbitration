@@ -22,14 +22,14 @@ stages:
           - model
           - run
     outs:
-      - target/saved_models:
+      - target/saved_models/window_model:
           cache: true
 
   evaluate:
     cmd: uv run python -m eeg_win_stack.pipeline.evaluate
     deps:
       - .\target\saved_windows
-      - .\target\saved_models
+      - target/saved_models/window_model
     params:
       - eeg_win_stack/config/params.toml:
           - output.training_detail_path
@@ -50,10 +50,13 @@ stages:
     params:
       - eeg_win_stack/config/params.toml:
           - decision
+          - output.decision_models_path
           - run
     outs:
       - target/decision_results.csv:
           cache: false
+      - target/saved_models/decision_model:
+          cache: true
     metrics:
-      - decision_metrics.json:
+      - target/decision_metrics.json:
           cache: false

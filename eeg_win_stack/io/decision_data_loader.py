@@ -361,7 +361,10 @@ class DecisionDataLoader:
         labels = []
         valid_lens = []
 
-        for criterion_val in set(criterion):
+        # First-appearance order, not ``set`` order: set iteration over strings is
+        # salted per process, which would otherwise reshuffle the dataset between
+        # runs and make ``fix_testset`` splits irreproducible.
+        for criterion_val in dict.fromkeys(criterion):
             indexes = findall(criterion, criterion_val)
             data_pa = []
             valid_len = 0
