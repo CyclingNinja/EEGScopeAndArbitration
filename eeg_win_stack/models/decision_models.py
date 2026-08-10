@@ -10,6 +10,8 @@ import torch
 from torch import nn
 from torch.nn import init
 
+from eeg_win_stack.models.decision_xgboost import XGBoostDecisionModel
+
 
 class DecisionModel(nn.Module):
     """Raw probability decision model with optional adaptive pooling.
@@ -143,12 +145,31 @@ class HistogramModel(nn.Module):
         return self.log_softmax(x)
 
 
-def build_decision_model(decision_cfg: dict) -> nn.Module:
+#: Accepted values of ``[decision] backend``. The torch aliases select the
+#: ``nn.Module`` models above; ``xgboost`` selects the gradient-boosted wrapper.
+DECISION_BACKENDS = ("mlp", "torch", "xgboost")
+
+
+def build_decision_model(decision_cfg: dict):
     """Construct a decision-stage model from the ``[decision]`` config.
+
+    The ``backend`` key selects the learner: ``"mlp"`` (default, also spelled
+    ``"torch"``) builds one of the :class:`~torch.nn.Module` models below, while
+    ``"xgboost"`` builds an
+    :class:`~eeg_win_stack.models.decision_xgboost.XGBoostDecisionModel` from the
+    ``[decision.xgboost]`` table. Both consume the same features, so the two are
+    directly comparable.
 
     Histogram features are required for patient/session aggregation, and they are
     also the default per-recording representation when ``use_his`` is enabled.
     """
+
+    backend = (decision_cfg.get("backend") or "mlp").lower()
+    if backend not in DECISION_BACKENDS:
+        raise ValueError(f"Unknown decision backend '{backend}'. Available: {sorted(DECISION_BACKENDS)}")
+
+    if backend == "xgboost":
+        return XGBoostDecisionModel(**decision_cfg.get("xgboost", {}))
 
     use_his = decision_cfg.get("use_his", True)
     use_session = decision_cfg.get("use_session_or_patients")

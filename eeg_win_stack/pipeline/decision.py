@@ -15,8 +15,9 @@ log = get_logger(__name__)
 
 def main(
     training_detail_path: str = "target/training_detail",
-    output_dir: str = "target",
+    output_dir: str = "target/saved_models/decision_model",
     results_csv: str = "target/decision_results.csv",
+    metrics_path: str = "target/decision_metrics.json",
     start_row: int | None = None,
     n_rows: int | None = None,
     row_gap: int | None = None,
@@ -29,9 +30,11 @@ def main(
     training_detail_path : str
         Path to the first-stage training detail artifact.
     output_dir : str
-        Directory for saving models and results.
+        Directory for saving the trained decision model artifact.
     results_csv : str
         Path to output results CSV.
+    metrics_path : str
+        Path to the DVC metrics JSON.
     start_row : int
         Starting row for CSV parsing.
     n_rows : int
@@ -44,12 +47,18 @@ def main(
     config = load()
     Logger.from_config(config)
     decision_cfg = config.get("decision", {})
+    output_cfg = config.get("output", {})
     training_detail_path = decision_cfg.get("detail_path", decision_cfg.get("csv_path", training_detail_path))
     results_csv = decision_cfg.get("csv_result_path", results_csv)
-    output_dir = Path(output_dir)
+    metrics_path = decision_cfg.get("metrics_path", metrics_path)
+    output_dir = Path(output_cfg.get("decision_models_path", output_dir))
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    log.info("Training decision models from %s", training_detail_path)
+    log.info(
+        "Training %s decision models from %s",
+        decision_cfg.get("backend", "mlp"),
+        training_detail_path,
+    )
 
     # Train
     training_results = decision_training(
@@ -76,6 +85,10 @@ def main(
         for result in training_results:
             log.info("Repetition %s: test_acc=%.4f", result["repetition"], result["test_acc"])
 
+        saved = next((result["saved_model_id"] for result in training_results if result.get("saved_model_id")), None)
+        if saved:
+            log.info("Saved best decision model as %s in %s", saved, output_dir)
+
         metric_names = ("test_acc", "ori_acc", "argmax_acc", "mean_acc")
         metrics = {
             name: sum(result[name] for result in training_results) / len(training_results) for name in metric_names
@@ -83,7 +96,9 @@ def main(
     else:
         metrics = {}
 
-    Path("decision_metrics.json").write_text(json.dumps(metrics, indent=2))
+    metrics_file = Path(metrics_path)
+    metrics_file.parent.mkdir(parents=True, exist_ok=True)
+    metrics_file.write_text(json.dumps(metrics, indent=2))
 
 
 if __name__ == "__main__":

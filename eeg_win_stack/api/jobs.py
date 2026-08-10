@@ -18,11 +18,16 @@ import torch
 from braindecode.datautil import load_concat_dataset
 
 from eeg_win_stack.api.artifacts import ModelArtifact
+from eeg_win_stack.api.decision_artifacts import DecisionArtifact
 from eeg_win_stack.models import ModelFactory
 from eeg_win_stack.models.decision_models import build_decision_model
 from eeg_win_stack.tools.dataset_splitting import DatasetSplitter
 from eeg_win_stack.training.trainer import Trainer, TrainingConfig
-from eeg_win_stack.training.decision import split_decision_data
+from eeg_win_stack.training.decision import (
+    split_decision_data,
+    train_torch_decision_model,
+    train_xgboost_decision_model,
+)
 from eeg_win_stack.io.decision_data_loader import DecisionDataLoader
 from eeg_win_stack.tools.decision_utils import DecisionEvaluationResult
 from eeg_win_stack.tools.decision_utils import compute_decision_metrics
@@ -284,8 +289,13 @@ def decision_training(
     """Train second-stage decision models from first-stage predictions.
 
     Loads aggregated first-stage probabilities from a training detail artifact,
-    trains decision-stage models with specified hyperparameters,
-    and returns training metrics.
+    trains decision-stage models with specified hyperparameters, and returns
+    training metrics. The learner is chosen by ``[decision] backend`` — the torch
+    models, or gradient boosting via ``xgboost``.
+
+    Every repetition is trained; the best of them (highest test accuracy, ties
+    broken by validation loss) is saved into ``output_dir`` as a
+    :class:`~eeg_win_stack.api.decision_artifacts.DecisionArtifact`.
 
     Parameters
     ----------
@@ -318,10 +328,12 @@ def decision_training(
         - "ori_acc": float
         - "argmax_acc": float
         - "mean_acc": float
+        - "saved_model_id": str, set on the repetition that was persisted
     """
 
     decision_cfg = config.get("decision", {})
     device = _resolve_decision_device(decision_cfg)
+    backend = (decision_cfg.get("backend") or "mlp").lower()
 
     dataset = _load_decision_dataset(
         config,
@@ -334,11 +346,9 @@ def decision_training(
     model_template = build_decision_model(decision_cfg)
 
     batch_size = decision_cfg.get("batch_size", 64)
-    learning_rate = decision_cfg.get("learning_rate", 0.01)
-    weight_decay = decision_cfg.get("weight_decay", 0.01)
-    n_epochs = decision_cfg.get("n_epochs", 60)
 
     results = []
+    best_rep = None
     for rep in range(n_repetitions):
         model = copy.deepcopy(model_template)
         model.to(device)
@@ -352,69 +362,53 @@ def decision_training(
             fix_testset=decision_cfg.get("fix_testset", True),
         )
 
-        # Train
-        optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
-        T_max = n_epochs
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max, eta_min=0, last_epoch=-1)
-        criterion = torch.nn.NLLLoss()
-        model.train()
-
-        min_loss_val = float("inf")
-        best_model = None
-        train_losses = []
-        valid_losses = []
-        iters = len(train_loader)
-
-        for epoch in range(n_epochs):
-            # Train step
-            total_loss = 0
-            for batch in train_loader:
-                optimizer.zero_grad()
-                X, Y, valid_len = [x.to(device) for x in batch]
-                Y_hat = model(X, valid_len)
-                loss = criterion(Y_hat, Y)
-                loss.backward()
-                optimizer.step()
-                total_loss += loss.item()
-                scheduler.step(epoch + len(train_loader) / iters)
-
-            train_losses.append(total_loss / len(train_loader))
-
-            # Validation step
-            model.eval()
-            total_loss = 0
-            with torch.no_grad():
-                for batch in valid_loader:
-                    X, Y, valid_len = [x.to(device) for x in batch]
-                    Y_hat = model(X, valid_len)
-                    loss = criterion(Y_hat, Y)
-                    total_loss += loss.item()
-
-            avg_valid_loss = total_loss / len(valid_loader)
-            valid_losses.append(avg_valid_loss)
-
-            if avg_valid_loss < min_loss_val:
-                min_loss_val = avg_valid_loss
-                best_model = copy.deepcopy(model)
-
-            model.train()
+        if backend == "xgboost":
+            training_result = train_xgboost_decision_model(model, train_loader, valid_loader)
+        else:
+            training_result = train_torch_decision_model(
+                model,
+                train_loader,
+                valid_loader,
+                decision_cfg=decision_cfg,
+                device=device,
+            )
 
         # Evaluate the best checkpoint on the held-out test split
-        model = best_model
+        model = training_result.model
         model.eval()
         eval_result = _evaluate_decision_model(model, test_loader, device)
 
-        results.append(
-            {
-                "repetition": rep,
-                "train_loss": train_losses[-1],
-                "valid_loss": valid_losses[-1],
-                "test_acc": eval_result.test_acc,
-                "ori_acc": eval_result.ori_acc,
-                "argmax_acc": eval_result.argmax_acc,
-                "mean_acc": eval_result.mean_acc,
-            }
+        result = {
+            "repetition": rep,
+            "train_loss": training_result.train_losses[-1],
+            "valid_loss": training_result.valid_losses[-1],
+            "test_acc": eval_result.test_acc,
+            "ori_acc": eval_result.ori_acc,
+            "argmax_acc": eval_result.argmax_acc,
+            "mean_acc": eval_result.mean_acc,
+        }
+        results.append(result)
+
+        # Track the winner: best test accuracy, ties broken by validation loss.
+        if best_rep is None or (result["test_acc"], -result["valid_loss"]) > (
+            best_rep[0]["test_acc"],
+            -best_rep[0]["valid_loss"],
+        ):
+            best_rep = (result, model)
+
+    if best_rep is not None:
+        best_result, best_model = best_rep
+        artifact = DecisionArtifact.save(
+            best_model,
+            model_id=f"decision_{backend}_{time.strftime('%Y-%m-%d_%H-%M-%S')}",
+            backend=backend,
+            decision_cfg=decision_cfg,
+            output_dir=output_dir,
+            metrics={key: value for key, value in best_result.items() if key != "repetition"},
+            repetition=best_result["repetition"],
         )
+        for result in results:
+            result["saved_model_id"] = artifact.model_id if result["repetition"] == best_result["repetition"] else ""
 
     return results
 
@@ -439,7 +433,9 @@ def decision_evaluation(
         Path to the first-stage training detail artifact (structured directory
         preferred; legacy CSV is still supported).
     model_path : str or pathlib.Path
-        Path to saved model checkpoint (``.pt`` file).
+        Path to a saved decision model. When a ``<stem>.manifest.json`` sits
+        beside it the model is rebuilt from that manifest (any backend);
+        otherwise the file is loaded as a pickled torch module.
     start_row : int, default=1
         Starting row index for CSV label block.
     n_rows : int, default=4
@@ -470,8 +466,11 @@ def decision_evaluation(
         block=block,
     )
 
-    # Load model
-    model = torch.load(model_path)
+    # Prefer the manifest beside the weights: it carries the backend and feature
+    # recipe, so the model is rebuilt exactly as trained. A bare checkpoint with
+    # no manifest is loaded as a pickled module, as before.
+    artifact = DecisionArtifact.load_for_weights(model_path)
+    model = artifact.build_model() if artifact else torch.load(model_path)
     model.to(device)
     model.eval()
 
