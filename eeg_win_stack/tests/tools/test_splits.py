@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import itertools
+import warnings
 from pathlib import Path
 
 import pandas as pd
@@ -80,8 +81,94 @@ def test_split_by_proportion_partitions_indices_correctly(mock_dataset_splitter,
     assert result[2] == windows_ds.split.return_value["test"]
 
 
-def test_split_by_folder_marks_eval_as_test_and_others_as_train(mock_dataset_splitter):
-    pass
+@pytest.fixture
+def folder_windows_ds():
+    """A TUAB-shaped dataset: half the recordings live under an ``eval`` folder."""
+    ds = Mock()
+    paths = [f"tuab/{folder}/patient_{i:03d}/session/data.fif" for folder in ("train", "eval") for i in range(4)]
+    ds.description = pd.DataFrame({"path": paths})
+
+    train_valid_set = Mock()
+    train_valid_set.description = pd.DataFrame({"path": paths[:4]})
+
+    def split(by):
+        # First call splits on the "train" column, second on explicit indices.
+        if isinstance(by, str):
+            return {"True": train_valid_set, "False": "test_set"}
+        return {name: f"{name}_set" for name in by}
+
+    ds.split.side_effect = split
+    return ds
+
+
+def test_split_by_folder_marks_eval_as_test_and_others_as_train(folder_windows_ds):
+    splitter = DatasetSplitter(folder_windows_ds, 0.5, 0.25, 0.25, 42, False)
+
+    train_set, valid_set, test_set = splitter.split_by_folder()
+
+    written = folder_windows_ds.set_description.call_args.args[0]
+    # Real bools, not 1/0: braindecode's split(by="train") stringifies the group
+    # key, and the method looks the results up as "True"/"False".
+    assert written["train"].dtype == bool
+    assert written["train"].tolist() == [True, True, True, True, False, False, False, False]
+    assert folder_windows_ds.split.call_args_list[0].args[0] == "train"
+    assert (train_set, valid_set, test_set) == ("train_set", "valid_set", "test_set")
+
+
+def test_split_by_folder_keeps_rows_already_assigned(folder_windows_ds):
+    """Explicit bools set upstream survive; only the sentinel rows are derived."""
+    description = folder_windows_ds.description
+    # Row 0 sits under "train" but is pinned to the test side; row 4 is the reverse.
+    description["train"] = [False, 2, 2, 2, True, 2, 2, 2]
+    folder_windows_ds.description = description
+
+    DatasetSplitter(folder_windows_ds, 0.5, 0.25, 0.25, 42, False).split_by_folder()
+
+    written = folder_windows_ds.set_description.call_args.args[0]
+    assert written["train"].tolist() == [False, True, True, True, True, False, False, False]
+
+
+def test_split_by_folder_does_not_trip_pandas_warnings(folder_windows_ds):
+    """Guards the chained-assignment / incompatible-dtype write this replaced."""
+    splitter = DatasetSplitter(folder_windows_ds, 0.5, 0.25, 0.25, 42, False)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        splitter.split_by_folder()
+
+
+def test_split_tuab_tueg_tags_unassigned_rows_without_warnings(monkeypatch):
+    """TUEG rows become "others"; TUAB rows keep the bool the loader gave them."""
+    ds = Mock()
+    tueg_paths = [f"tueg/patient_{i:03d}/session/data.fif" for i in range(4)]
+    ds.description = pd.DataFrame(
+        {
+            "path": ["tuab/train/p/s/data.fif", "tuab/eval/p/s/data.fif", *tueg_paths],
+            "train": [True, False, 2, 2, 2, 2],
+        }
+    )
+
+    tueg_whole = Mock()
+    tueg_whole.description = pd.DataFrame({"path": tueg_paths})
+    tueg_whole.split.return_value = {"train": Mock(datasets=[]), "test": "tueg_test"}
+    ds.split.return_value = {"True": Mock(datasets=[]), "False": "tuab_test", "others": tueg_whole}
+
+    combined = Mock()
+    combined.description = pd.DataFrame({"path": tueg_paths})
+    combined.split.return_value = {"train": "train_set", "valid": "valid_set"}
+    monkeypatch.setattr(
+        "eeg_win_stack.tools.dataset_splitting.BaseConcatDataset",
+        Mock(return_value=combined),
+    )
+
+    splitter = DatasetSplitter(ds, 0.5, 0.25, 0.25, 42, False)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        train_set, valid_set, test_set = splitter.split_tuab_tueg(test_on="tueg")
+
+    written = ds.set_description.call_args.args[0]
+    assert written["train"].tolist() == [True, False, "others", "others", "others", "others"]
+    assert (train_set, valid_set, test_set) == ("train_set", "valid_set", "tueg_test")
 
 
 def test_split_by_patient(mock_dataset_splitter, windows_ds):

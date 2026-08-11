@@ -114,14 +114,17 @@ class DatasetSplitter:
 
     def split_by_folder(self):
         des = self.windows_ds.description
-        if "train" not in list(des):
-            des["train"] = [2] * len(des["path"])
+        existing = des["train"] if "train" in des else [None] * len(des)
 
-        path = des["path"]
-        train = des["train"]
-        for i in range(len(train)):
-            if _is_split_sentinel(train[i]):
-                des["train"][i] = "eval" not in path[i]
+        # TUAB keeps its held-out recordings under an "eval" folder. Rows that
+        # already carry an explicit bool were decided upstream and are kept.
+        # Assigning the whole column at once (rather than cell by cell) keeps the
+        # result a real bool column, which is what ``split("train")`` needs to
+        # produce the "True"/"False" keys used below.
+        derived = ~des["path"].str.contains("eval", regex=False)
+        des["train"] = [
+            value if not _is_split_sentinel(value) else bool(is_train) for value, is_train in zip(existing, derived)
+        ]
 
         self.windows_ds.set_description(des, overwrite=True)
         splits = self.windows_ds.split("train")
@@ -164,10 +167,10 @@ class DatasetSplitter:
 
     def split_tuab_tueg(self, test_on="tueg"):
         des = self.windows_ds.description
-        train = des["train"]
-        for i in range(len(train)):
-            if _is_split_sentinel(train[i]):
-                train[i] = "others"
+        # Deliberately a mixed column: TUAB rows keep their bool, TUEG rows are
+        # tagged "others". Written in one assignment so pandas settles on object
+        # dtype instead of warning about an incompatible per-cell write.
+        des["train"] = [value if not _is_split_sentinel(value) else "others" for value in des["train"]]
 
         self.windows_ds.set_description(des, overwrite=True)
         splits = self.windows_ds.split("train")
