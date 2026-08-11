@@ -32,7 +32,6 @@ eeg-win-stack = "eeg_win_stack.cli:main"
 
 [tool.setuptools]
 py-modules = [
-  "final_decision",
   "train_and_eval",
 ]
 
