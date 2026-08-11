@@ -22,14 +22,14 @@ n_load = 100
 preload = false
 tuab_path = "E:/TUAB"
 tueg_path = ""
+load_saved_recordings = true
 save_recordings = true
 save_recordings_path = "./target/saved_recordings"
+load_saved_windows = false
 save_windows = true
 save_windows_path = "./target/saved_windows"
-load_saved_recordings = false
-load_saved_windows = false
 relabel_datasets = ""
-relabel_labels = ""
+relabel_labels = "./data/relabel_labels.csv"
 
 [preprocessing]
 bandpass_filter = false
@@ -42,7 +42,7 @@ max_abs_val = 800
 sampling_freq = 100
 
 [windowing]
-window_len_s = 30
+window_len_s = 60
 multiple = 0
 tmin = 300
 sec_to_cut = 60
