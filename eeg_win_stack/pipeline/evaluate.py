@@ -4,42 +4,19 @@ import json
 import mne
 from pathlib import Path
 
-import mlflow
 from braindecode.datautil import load_concat_dataset
 
 from eeg_win_stack.config import load
 from eeg_win_stack.evaluation.evaluator import Evaluator
 from eeg_win_stack.models import ModelFactory
 from eeg_win_stack.pipeline.validation import validate_window_length
+from eeg_win_stack.tools import tracking
 from eeg_win_stack.tools.dataset_splitting import DatasetSplitter
 from eeg_win_stack.tools.decision_utils import save_training_detail
 from eeg_win_stack.training.trainer import Trainer, TrainingConfig
 from eeg_win_stack.tools.logger import Logger, get_logger
 
 log = get_logger(__name__)
-
-
-def configure_mlflow(cfg):
-    mlflow.set_tracking_uri("mlruns")
-
-    experiment_name = cfg["run"]["experiment_name"]
-    use_azure_artifacts = cfg["run"].get("use_azure_artifacts", False)
-    experiment_name = experiment_name if use_azure_artifacts else f"{experiment_name}_local"
-
-    try:
-        if mlflow.get_experiment_by_name(experiment_name) is None:
-            if use_azure_artifacts:
-                mlflow.create_experiment(
-                    experiment_name,
-                    artifact_location=cfg["run"]["azure_artifact_root"],
-                )
-            else:
-                mlflow.create_experiment(experiment_name)
-
-        mlflow.set_experiment(experiment_name)
-    except Exception as exc:  #  noqa: BLE001 - defensive fallback for Azure/auth issues
-        log.warning("MLflow experiment setup skipped: %s", exc)
-        mlflow.set_experiment(experiment_name)
 
 
 def main():
@@ -85,7 +62,7 @@ def main():
         **model_cfg.get(model_cfg["name"], {}),
     )
 
-    params_path = sorted(Path(cfg["output"]["saved_models_path"]).glob("*.pt"))[-1]
+    params_path = tracking.resolve_model_path(cfg)
     training_config = TrainingConfig(
         learning_rate=training_cfg["learning_rate"],
         weight_decay=training_cfg["weight_decay"],
@@ -110,28 +87,13 @@ def main():
     }
 
     Path("metrics.json").write_text(json.dumps(metrics, indent=2))
+    log.info("evaluation metrics: %s", metrics)
 
-    try:
-        configure_mlflow(cfg)
-        with mlflow.start_run():
-            mlflow.log_params(
-                {
-                    "model": model_cfg["name"],
-                    "learning_rate": training_cfg["learning_rate"],
-                    "weight_decay": training_cfg["weight_decay"],
-                    "batch_size": training_cfg["batch_size"],
-                    "n_epochs": training_cfg["n_epochs"],
-                    "split_way": split_cfg["split_way"],
-                }
-            )
-            mlflow.log_metrics(metrics)
-            latest_pt = max(
-                Path(cfg["output"]["saved_models_path"]).glob("*.pt"),
-                key=lambda p: p.stat().st_mtime,
-            )
-            mlflow.log_artifact(str(latest_pt), artifact_path="model")
-    except Exception as exc:  #  noqa: BLE001 - defensive fallback for Azure/auth issues
-        log.warning("MLflow logging skipped because of an error: %s", exc)
+    # Rejoin the run the train stage minted. Parameters and the model artifact
+    # were logged there, so this stage contributes only the test-set metrics.
+    with tracking.start_run(cfg, resume=True) as tracker:
+        tracker.log_metrics(metrics)
+        tracker.set_tags({"evaluated_model": str(params_path)})
 
 
 if __name__ == "__main__":

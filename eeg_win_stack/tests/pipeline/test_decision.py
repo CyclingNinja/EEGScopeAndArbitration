@@ -18,6 +18,9 @@ def stage_config(tmp_path):
     target = tmp_path / "target"
     return {
         "logging": {"level": "WARNING", "file": "", "console": False},
+        # This suite covers the decision stage, not run threading; opt out so a
+        # missing run token does not abort the stage under the fail-loud default.
+        "run": {"mlflow_required": False},
         "output": {"decision_models_path": str(target / "saved_models" / "decision_model")},
         "decision": {
             "backend": "xgboost",

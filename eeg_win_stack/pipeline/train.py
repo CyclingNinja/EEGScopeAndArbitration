@@ -9,6 +9,8 @@ from braindecode.datautil import load_concat_dataset
 
 from eeg_win_stack.config import load
 from eeg_win_stack.tools.logger import Logger
+from eeg_win_stack.tools import tracking
+from eeg_win_stack.tools.logger import Logger, get_logger
 from eeg_win_stack.models import ModelFactory
 from eeg_win_stack.pipeline.validation import validate_window_length
 from eeg_win_stack.tools.dataset_splitting import DatasetSplitter
@@ -84,11 +86,27 @@ def main():
 
     # Persist the per-epoch loss/accuracy table, mirroring the decision stage's
     # results CSV so both training stages leave a comparable training record.
-    output_cfg = cfg["output"]
-    training_results_path = output_cfg.get("training_results_path", output_cfg.get("log_path"))
-    if not training_results_path:
-        raise KeyError("Expected output.training_results_path (or legacy output.log_path) in config")
-    Trainer.save_history(eeg_classifier, training_results_path)
+    Trainer.save_history(eeg_classifier, cfg["output"]["log_path"])
+        eeg_classifier = trainer.fit(model, train_set, valid_set)
+
+        save_dir = Path(cfg["output"]["saved_models_path"])
+        save_dir.mkdir(parents=True, exist_ok=True)
+        save_path = save_dir / f"{model_cfg['name']}_{time.strftime('%Y-%m-%d_%H-%M-%S')}_params.pt"
+        Trainer.save(eeg_classifier, save_path)
+        tracker.log_artifact(save_path, artifact_path="model")
+
+        # Record the run ID and the model just written, so evaluate and decision
+        # rejoin this run and load this exact checkpoint rather than globbing for
+        # the newest .pt.
+        tracking.write_token(cfg, run_id=tracker.run_id, model_path=save_path)
+
+        # Persist the per-epoch loss/accuracy table, mirroring the decision stage's
+        # results CSV so both training stages leave a comparable training record.
+        output_cfg = cfg["output"]
+        training_results_path = output_cfg.get("training_results_path", output_cfg.get("log_path"))
+        if not training_results_path:
+            raise KeyError("Expected output.training_results_path (or legacy output.log_path) in config")
+        Trainer.save_history(eeg_classifier, training_results_path)
 
 
 if __name__ == "__main__":

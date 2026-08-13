@@ -8,6 +8,7 @@ from pathlib import Path
 
 from eeg_win_stack.api.jobs import decision_training
 from eeg_win_stack.config import load
+from eeg_win_stack.tools import tracking
 from eeg_win_stack.tools.logger import Logger, get_logger
 
 log = get_logger(__name__)
@@ -99,6 +100,14 @@ def main(
     metrics_file = Path(metrics_path)
     metrics_file.parent.mkdir(parents=True, exist_ok=True)
     metrics_file.write_text(json.dumps(metrics, indent=2))
+
+    # Rejoin the run the train stage minted, so second-stage results sit
+    # alongside the first-stage model that produced their input features.
+    # Per-repetition rows stay in the CSV for now; nesting them as child runs is
+    # the next step, not this one.
+    with tracking.start_run(config, resume=True) as tracker:
+        tracker.log_params({"decision_backend": decision_cfg.get("backend", "mlp")})
+        tracker.log_metrics({f"decision_{name}": value for name, value in metrics.items()})
 
 
 if __name__ == "__main__":
