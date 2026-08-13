@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
 
 from braindecode.datautil import load_concat_dataset
@@ -9,6 +10,9 @@ from braindecode.datasets import BaseConcatDataset
 from braindecode.preprocessing import create_fixed_length_windows
 
 from eeg_win_stack.io.raw_eeg_loading import RawEEGLoader
+from eeg_win_stack.tools.logger import get_logger
+
+log = get_logger(__name__)
 
 
 class DatasetBuilder:
@@ -101,12 +105,17 @@ class DatasetBuilder:
 
     def build(self) -> BaseConcatDataset:
         """Return a windowed dataset ready for splitting."""
+        # Log the branch actually taken, not the flags requested: a mismatch
+        # between the two is the failure mode these load paths keep hitting.
         if self.load_saved_windows:
+            log.info("build path: saved windows from %s", self.saved_windows_path)
             return self._load_saved_windows()
 
         if self.load_saved_data:
+            log.info("build path: saved recordings from %s", self.saved_data_path)
             recordings = self._load_saved_recordings()
         else:
+            log.info("build path: raw sources (use_tuab=%s, use_tueg=%s)", self.use_tuab, self.use_tueg)
             recordings = self._load_and_preprocess_raw()
 
         return self._window(recordings)
@@ -117,22 +126,40 @@ class DatasetBuilder:
 
     def _load_saved_windows(self) -> BaseConcatDataset:
         load_ids = list(range(self.n_load)) if self.n_load else None
-        return load_concat_dataset(
+        start = time.perf_counter()
+        windows_ds = load_concat_dataset(
             path=self.saved_windows_path,
             preload=False,
             ids_to_load=load_ids,
             target_name="pathological",
             n_jobs=1,
         )
+        log.info(
+            "loaded %d windows from %d saved recordings in %.1fs (n_load=%s)",
+            len(windows_ds),
+            len(windows_ds.datasets),
+            time.perf_counter() - start,
+            self.n_load,
+        )
+        return windows_ds
 
     def _load_saved_recordings(self) -> BaseConcatDataset:
         load_ids = list(range(self.n_load)) if self.n_load else None
-        return load_concat_dataset(
+        start = time.perf_counter()
+        recordings = load_concat_dataset(
             path=self.saved_data_path,
             preload=self.preload,
             ids_to_load=load_ids,
             target_name="pathological",
         )
+        log.info(
+            "loaded %d saved recordings in %.1fs (n_load=%s, preload=%s)",
+            len(recordings.datasets),
+            time.perf_counter() - start,
+            self.n_load,
+            self.preload,
+        )
+        return recordings
 
     def _load_and_preprocess_raw(self) -> BaseConcatDataset:
         loader = RawEEGLoader(
@@ -145,7 +172,20 @@ class DatasetBuilder:
             preload=self.preload,
             n_jobs=self.n_jobs,
         )
+        # Each phase is logged separately: this path holds whole recordings in
+        # RAM, so knowing which phase was running when it died is the diagnosis.
+        start = time.perf_counter()
         recordings = loader.load()
+        log.info(
+            "loaded %d raw recordings in %.1fs (preload=%s, n_tuab=%s, n_tueg=%s)",
+            len(recordings.datasets),
+            time.perf_counter() - start,
+            self.preload,
+            self.n_tuab,
+            self.n_tueg,
+        )
+
+        start = time.perf_counter()
         recordings = loader.filter(
             recordings,
             tmin=self.tmin,
@@ -154,8 +194,15 @@ class DatasetBuilder:
             relabel_label=self.relabel_label,
             relabel_dataset=self.relabel_dataset,
         )
+        log.info(
+            "filtered to %d recordings in %.1fs",
+            len(recordings.datasets),
+            time.perf_counter() - start,
+        )
+
         save_dir = self.saved_data_path if self.save_preprocessed else None
-        return loader.preprocess_recordings(
+        start = time.perf_counter()
+        recordings = loader.preprocess_recordings(
             recordings,
             sampling_freq=self.sampling_freq,
             sec_to_cut=self.sec_to_cut,
@@ -171,6 +218,14 @@ class DatasetBuilder:
             init_block_size=self.init_block_size,
             save_dir=save_dir,
         )
+        log.info(
+            "preprocessed %d recordings in %.1fs (sfreq=%s, save_dir=%s)",
+            len(recordings.datasets),
+            time.perf_counter() - start,
+            self.sampling_freq,
+            save_dir,
+        )
+        return recordings
 
     # ------------------------------------------------------------------
     # Private: windowing
@@ -180,6 +235,16 @@ class DatasetBuilder:
         fs = recordings.datasets[0].raw.info["sfreq"]
         window_len_samples = int(fs * self.window_len_s)
         stride = self.window_stride_samples or window_len_samples
+
+        log.info(
+            "windowing %d recordings: fs=%s, window=%d samples (%ss), stride=%d",
+            len(recordings.datasets),
+            fs,
+            window_len_samples,
+            self.window_len_s,
+            stride,
+        )
+        start = time.perf_counter()
 
         windows_ds = create_fixed_length_windows(
             recordings,
@@ -196,8 +261,16 @@ class DatasetBuilder:
             sub_ds.windows.drop_bad()
             assert sub_ds.windows.preload == self.preload
 
+        log.info(
+            "created %d windows from %d recordings in %.1fs",
+            len(windows_ds),
+            len(windows_ds.datasets),
+            time.perf_counter() - start,
+        )
+
         if self.save_windows:
             Path(self.saved_windows_path).mkdir(parents=True, exist_ok=True)
             windows_ds.save(self.saved_windows_path, overwrite=True)
+            log.info("saved windows to %s", self.saved_windows_path)
 
         return windows_ds

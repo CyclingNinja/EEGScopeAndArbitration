@@ -3,8 +3,10 @@
 import mne
 
 from eeg_win_stack.config import load
-from eeg_win_stack.tools.logger import Logger
+from eeg_win_stack.tools.logger import Logger, get_logger
 from eeg_win_stack.io.dataset_builder import DatasetBuilder
+
+log = get_logger(__name__)
 
 
 def main():
@@ -17,7 +19,9 @@ def main():
 
     mne.set_log_level(run_cfg["mne_log_level"])
 
-    DatasetBuilder(
+    log.info("preprocess stage starting (n_jobs=%s, mne_log_level=%s)", run_cfg["n_jobs"], run_cfg["mne_log_level"])
+
+    windows_ds = DatasetBuilder(
         use_tuab=data_cfg["use_tuab"],
         use_tueg=data_cfg["use_tueg"],
         tuab_path=data_cfg["tuab_path"],
@@ -52,6 +56,8 @@ def main():
         saved_data_path=data_cfg["save_recordings_path"],
         save_preprocessed=data_cfg["save_recordings"],
     ).build()
+
+    log.info("preprocess stage complete: %d windows ready", len(windows_ds))
 
 
 if __name__ == "__main__":

@@ -8,11 +8,13 @@ import torch
 from braindecode.datautil import load_concat_dataset
 
 from eeg_win_stack.config import load
-from eeg_win_stack.tools.logger import Logger
+from eeg_win_stack.tools.logger import Logger, get_logger
 from eeg_win_stack.models import ModelFactory
 from eeg_win_stack.pipeline.validation import validate_window_length
 from eeg_win_stack.tools.dataset_splitting import DatasetSplitter
 from eeg_win_stack.training.trainer import Trainer, TrainingConfig
+
+log = get_logger(__name__)
 
 
 def main():
@@ -29,11 +31,19 @@ def main():
         torch.backends.cudnn.benchmark = True
     torch.set_num_threads(run_cfg["n_jobs"])
 
+    log.info("loading windows from %s", cfg["data"]["save_windows_path"])
     windows_ds = load_concat_dataset(
         path=cfg["data"]["save_windows_path"],
         preload=False,
         target_name="pathological",
         n_jobs=1,
+    )
+    log.info(
+        "loaded %d windows from %d recordings, shape %d channels x %d samples",
+        len(windows_ds),
+        len(windows_ds.datasets),
+        windows_ds[0][0].shape[0],
+        windows_ds[0][0].shape[1],
     )
 
     data_choice = DatasetSplitter(
@@ -60,6 +70,14 @@ def main():
         drop_prob=model_cfg["dropout"],
         final_conv_length=model_cfg["final_conv_length"],
         **model_cfg.get(model_cfg["name"], {}),
+    )
+    # Log the class the registry actually resolved to, not just the configured
+    # name: duplicate @register keys silently shadow one another.
+    log.info(
+        "model %r resolved to %s with %d parameters",
+        model_cfg["name"],
+        type(model).__name__,
+        sum(p.numel() for p in model.parameters()),
     )
 
     training_config = TrainingConfig(
