@@ -6,6 +6,11 @@ n_jobs = 8
 use_azure_artifacts = false
 azure_artifact_root = "wasbs://mlflow-artifacts@medshedeegwinstack.blob.core.windows.net/experiments"
 experiment_name = "eeg_win_stack"
+mlflow_tracking_uri = "mlruns"
+# MLflow is the system of record for run history, so a tracking failure aborts
+# the stage by default. Set false for offline work where the pipeline should
+# still complete without a run being recorded.
+mlflow_required = true
 
 [logging]
 # Consumed by eeg_win_stack.tools.logger.Logger.from_config
