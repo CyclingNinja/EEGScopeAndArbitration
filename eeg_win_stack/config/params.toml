@@ -22,7 +22,7 @@ n_load = 100
 preload = false
 tuab_path = "E:/TUAB"
 tueg_path = ""
-load_saved_recordings = true
+load_saved_recordings = false
 save_recordings = true
 save_recordings_path = "./target/saved_recordings"
 load_saved_windows = false
@@ -76,7 +76,7 @@ es_threshold = 0.001
 checkpoint_dir = ""
 
 [output]
-log_path = "./target/result.csv"
+training_results_path = "./target/result.csv"
 # Each stage owns its own subdirectory: DVC refuses overlapping stage outputs,
 # so first-stage and decision-stage models cannot share one directory.
 saved_models_path = "./target/saved_models/window_model"
