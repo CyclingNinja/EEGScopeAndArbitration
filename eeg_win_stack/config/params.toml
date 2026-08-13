@@ -87,7 +87,7 @@ train_whole_dataset_again = true
 load_pretrained_model = false
 
 [model]
-name = "tcn"
+name = "deep4"
 final_conv_length = "auto"
 dropout = 0.1
 
