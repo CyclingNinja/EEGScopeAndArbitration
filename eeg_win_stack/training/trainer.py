@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -11,7 +12,10 @@ from braindecode import EEGClassifier
 from skorch.callbacks import Checkpoint, EarlyStopping, LRScheduler
 from skorch.helper import predefined_split
 
+from eeg_win_stack.tools.logger import get_logger
 from eeg_win_stack.tools.metrics import weight_function
+
+log = get_logger(__name__)
 
 
 @dataclass
@@ -117,10 +121,45 @@ class Trainer:
             The fitted classifier. Its ``history`` attribute holds the
             per-epoch training and validation metrics.
         """
+        cfg = self.config
+        log.info(
+            "training %s on %s: %d epochs, batch_size=%d, lr=%g, %d train / %d valid windows",
+            type(model).__name__,
+            cfg.resolve_device(),
+            cfg.n_epochs,
+            cfg.batch_size,
+            cfg.learning_rate,
+            len(train_set),
+            len(valid_set) if valid_set is not None else 0,
+        )
+
         eeg_classifier = self._build_classifier(model, train_set, valid_set)
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
-        eeg_classifier.fit(train_set, y=None, epochs=self.config.n_epochs)
+
+        start = time.perf_counter()
+        eeg_classifier.fit(train_set, y=None, epochs=cfg.n_epochs)
+        elapsed = time.perf_counter() - start
+
+        # `valid_accuracy` is absent when training without a validation split,
+        # so mirror save_history's guard rather than assuming the column.
+        history = eeg_classifier.history
+        epochs_run = len(history) if history else 0
+        if history and "valid_accuracy" in history[-1]:
+            log.info(
+                "finished %d/%d epochs in %.1fs, best valid_accuracy=%.4f",
+                epochs_run,
+                cfg.n_epochs,
+                elapsed,
+                max(history[:, "valid_accuracy"]),
+            )
+        else:
+            log.info(
+                "finished %d/%d epochs in %.1fs (no validation split)",
+                epochs_run,
+                cfg.n_epochs,
+                elapsed,
+            )
         return eeg_classifier
 
     def load(self, model, params_path) -> EEGClassifier:
@@ -143,6 +182,12 @@ class Trainer:
         eeg_classifier = self._build_classifier(model)
         eeg_classifier.initialize()
         eeg_classifier.load_params(str(Path(params_path)))
+        log.info(
+            "loaded %s params from %s onto %s",
+            type(model).__name__,
+            params_path,
+            self.config.resolve_device(),
+        )
         return eeg_classifier
 
     @staticmethod
@@ -159,6 +204,7 @@ class Trainer:
         path = Path(params_path)
         path.parent.mkdir(parents=True, exist_ok=True)
         eeg_classifier.save_params(str(path))
+        log.info("saved model params to %s", path)
 
     #: Per-epoch metrics written to the training-history CSV, in column order.
     HISTORY_COLUMNS = ("train_loss", "valid_loss", "train_accuracy", "valid_accuracy")
@@ -193,11 +239,17 @@ class Trainer:
         with path.open("w", newline="") as history_file:
             writer = csv.writer(history_file)
             writer.writerow(["epoch", *present])
-            if not history:
-                return
-            column_values = {c: history[:, c] for c in present}
-            for row, epoch in enumerate(history[:, "epoch"]):
-                writer.writerow([epoch, *(column_values[c][row] for c in present)])
+            if history:
+                column_values = {c: history[:, c] for c in present}
+                for row, epoch in enumerate(history[:, "epoch"]):
+                    writer.writerow([epoch, *(column_values[c][row] for c in present)])
+
+        log.info(
+            "wrote %d-epoch training history to %s (columns: %s)",
+            len(history) if history else 0,
+            path,
+            ", ".join(present) or "none",
+        )
 
     def _build_classifier(self, model, train_set=None, valid_set=None) -> EEGClassifier:
         """Construct an unfitted EEGClassifier from the active configuration.
