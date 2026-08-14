@@ -102,12 +102,27 @@ def main(
     metrics_file.write_text(json.dumps(metrics, indent=2))
 
     # Rejoin the run the train stage minted, so second-stage results sit
-    # alongside the first-stage model that produced their input features.
-    # Per-repetition rows stay in the CSV for now; nesting them as child runs is
-    # the next step, not this one.
+    # alongside the first-stage model that produced their input features. Each
+    # repetition is its own experiment run, so they go in as nested children;
+    # only the averages stay on the parent, where DVC reads them as metrics.
     with tracking.start_run(config, resume=True) as tracker:
         tracker.log_params({"decision_backend": decision_cfg.get("backend", "mlp")})
         tracker.log_metrics({f"decision_{name}": value for name, value in metrics.items()})
+
+        for result in training_results:
+            repetition = result["repetition"]
+            with tracker.nested_run(run_name=f"decision-repetition-{repetition}") as child:
+                child.log_params({"repetition": repetition})
+                child.log_metrics(
+                    {
+                        name: value
+                        for name, value in result.items()
+                        if name != "repetition" and isinstance(value, (int, float))
+                    }
+                )
+                if result.get("saved_model_id"):
+                    # Marks the repetition whose model was actually persisted.
+                    child.set_tags({"saved_model_id": result["saved_model_id"]})
 
 
 if __name__ == "__main__":

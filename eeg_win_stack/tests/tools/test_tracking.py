@@ -277,9 +277,32 @@ class TestTrackers:
             tracker.set_tags({"c": "d"})
 
         mlflow.log_params.assert_called_once_with({"a": 1})
-        mlflow.log_metrics.assert_called_once_with({"b": 2.0})
+        mlflow.log_metrics.assert_called_once_with({"b": 2.0}, step=None)
         mlflow.log_artifact.assert_called_once_with("model.pt", artifact_path="model")
         mlflow.set_tags.assert_called_once_with({"c": "d"})
+
+    def test_tracker_passes_step_through(self):
+        """Per-epoch curves depend on step reaching mlflow."""
+        mlflow = MagicMock()
+        with patch("eeg_win_stack.tools.tracking.mlflow", mlflow):
+            tracking.Tracker("abc").log_metrics({"train_loss": 0.5}, step=7)
+
+        mlflow.log_metrics.assert_called_once_with({"train_loss": 0.5}, step=7)
+
+    def test_nested_run_opens_a_child(self):
+        mlflow = MagicMock()
+        mlflow.start_run.return_value.__enter__.return_value.info.run_id = "child"
+        with patch("eeg_win_stack.tools.tracking.mlflow", mlflow):
+            with tracking.Tracker("parent").nested_run("rep-1") as child:
+                assert child.run_id == "child"
+
+        mlflow.start_run.assert_called_once_with(nested=True, run_name="rep-1")
+
+    def test_null_tracker_nested_run_yields_itself(self):
+        null = tracking.NullTracker()
+        with null.nested_run("rep-1") as child:
+            assert child is null
+            child.log_metrics({"test_acc": 1.0})  # must not raise
 
     def test_null_tracker_matches_the_tracker_surface(self):
         methods = {name for name in vars(tracking.Tracker) if not name.startswith("_")}

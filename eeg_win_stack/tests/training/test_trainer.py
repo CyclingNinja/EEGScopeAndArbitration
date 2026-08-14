@@ -249,3 +249,37 @@ class TestSaveHistory:
 
         rows = _read_csv(path)
         assert rows == [["epoch"]]
+
+
+class TestHistoryRows:
+    """The extraction shared by save_history and the train stage's MLflow curves."""
+
+    def _classifier(self, rows):
+        clf = MagicMock()
+        clf.history = FakeHistory(rows)
+        return clf
+
+    def test_returns_one_pair_per_epoch(self):
+        clf = self._classifier(
+            [
+                {"epoch": 1, "train_loss": 0.9, "valid_loss": 1.0, "train_accuracy": 0.5, "valid_accuracy": 0.4},
+                {"epoch": 2, "train_loss": 0.7, "valid_loss": 0.8, "train_accuracy": 0.6, "valid_accuracy": 0.55},
+            ]
+        )
+        present, rows = Trainer.history_rows(clf)
+
+        assert present == ["train_loss", "valid_loss", "train_accuracy", "valid_accuracy"]
+        assert rows[0] == (1, {"train_loss": 0.9, "valid_loss": 1.0, "train_accuracy": 0.5, "valid_accuracy": 0.4})
+        assert rows[1][0] == 2
+
+    def test_omits_columns_not_recorded(self):
+        clf = self._classifier([{"epoch": 1, "train_loss": 0.9, "train_accuracy": 0.5}])
+        present, rows = Trainer.history_rows(clf)
+
+        assert present == ["train_loss", "train_accuracy"]
+        assert rows == [(1, {"train_loss": 0.9, "train_accuracy": 0.5})]
+
+    def test_empty_history_yields_nothing(self):
+        present, rows = Trainer.history_rows(self._classifier([]))
+        assert present == []
+        assert rows == []
