@@ -123,6 +123,18 @@ def main():
 
         eeg_classifier = trainer.fit(model, train_set, valid_set)
 
+        # Per-epoch curves are MLflow-native, so they go in as stepped metrics
+        # rather than becoming a DVC output. The CSV below stays as the durable
+        # on-disk fallback.
+        present, history = Trainer.history_rows(eeg_classifier)
+        for epoch, values in history:
+            tracker.log_metrics(values, step=int(epoch))
+        log.info(
+            "logged %d epochs of history as stepped metrics (columns: %s)",
+            len(history),
+            ", ".join(present) or "none",
+        )
+
         save_dir = Path(cfg["output"]["saved_models_path"])
         save_dir.mkdir(parents=True, exist_ok=True)
         save_path = save_dir / f"{model_cfg['name']}_{time.strftime('%Y-%m-%d_%H-%M-%S')}_params.pt"

@@ -210,6 +210,38 @@ class Trainer:
     HISTORY_COLUMNS = ("train_loss", "valid_loss", "train_accuracy", "valid_accuracy")
 
     @staticmethod
+    def history_rows(eeg_classifier, columns=HISTORY_COLUMNS):
+        """Per-epoch metrics as ``(present_columns, [(epoch, {column: value})])``.
+
+        Shared by :meth:`save_history` and the train stage's MLflow stepped
+        metrics so the CSV and the tracked curves cannot disagree about which
+        columns skorch actually recorded — the ``valid_*`` keys are absent when
+        training without a validation split.
+
+        Parameters
+        ----------
+        eeg_classifier : EEGClassifier
+            A fitted classifier whose ``history`` holds the per-epoch metrics.
+        columns : sequence of str, optional
+            Candidate history keys, in output order. Defaults to
+            :attr:`HISTORY_COLUMNS`.
+
+        Returns
+        -------
+        tuple
+            The recorded subset of ``columns``, and one ``(epoch, values)`` pair
+            per epoch. Both are empty when the classifier has no history.
+        """
+        history = eeg_classifier.history
+        if not history:
+            return [], []
+
+        present = [c for c in columns if c in history[-1]]
+        column_values = {c: history[:, c] for c in present}
+        rows = [(epoch, {c: column_values[c][row] for c in present}) for row, epoch in enumerate(history[:, "epoch"])]
+        return present, rows
+
+    @staticmethod
     def save_history(eeg_classifier, history_path, columns=HISTORY_COLUMNS) -> None:
         """Write the per-epoch training loss/accuracy table to a CSV.
 
@@ -233,20 +265,17 @@ class Trainer:
         path = Path(history_path)
         path.parent.mkdir(parents=True, exist_ok=True)
 
-        history = eeg_classifier.history
-        present = [c for c in columns if history and c in history[-1]] if history else []
+        present, rows = Trainer.history_rows(eeg_classifier, columns)
 
         with path.open("w", newline="") as history_file:
             writer = csv.writer(history_file)
             writer.writerow(["epoch", *present])
-            if history:
-                column_values = {c: history[:, c] for c in present}
-                for row, epoch in enumerate(history[:, "epoch"]):
-                    writer.writerow([epoch, *(column_values[c][row] for c in present)])
+            for epoch, values in rows:
+                writer.writerow([epoch, *(values[c] for c in present)])
 
         log.info(
             "wrote %d-epoch training history to %s (columns: %s)",
-            len(history) if history else 0,
+            len(rows),
             path,
             ", ".join(present) or "none",
         )

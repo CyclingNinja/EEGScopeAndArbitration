@@ -156,14 +156,25 @@ class Tracker:
     def log_params(self, params: dict) -> None:
         mlflow.log_params(params)
 
-    def log_metrics(self, metrics: dict) -> None:
-        mlflow.log_metrics(metrics)
+    def log_metrics(self, metrics: dict, step: int | None = None) -> None:
+        mlflow.log_metrics(metrics, step=step)
 
     def log_artifact(self, local_path: str | Path, artifact_path: str | None = None) -> None:
         mlflow.log_artifact(str(local_path), artifact_path=artifact_path)
 
     def set_tags(self, tags: dict) -> None:
         mlflow.set_tags(tags)
+
+    @contextmanager
+    def nested_run(self, run_name: str | None = None):
+        """Open a child run under this one, for per-repetition results.
+
+        Repetitions are separate experiment runs sharing one parent, which is
+        what MLflow nesting is for — as opposed to the aggregate scalars, which
+        stay on the parent so DVC can pick them up as metrics.
+        """
+        with mlflow.start_run(nested=True, run_name=run_name) as child:
+            yield Tracker(child.info.run_id)
 
 
 class NullTracker:
@@ -174,7 +185,7 @@ class NullTracker:
     def log_params(self, params: dict) -> None:
         log.debug("tracking disabled; dropping %d params", len(params))
 
-    def log_metrics(self, metrics: dict) -> None:
+    def log_metrics(self, metrics: dict, step: int | None = None) -> None:
         log.debug("tracking disabled; dropping %d metrics", len(metrics))
 
     def log_artifact(self, local_path: str | Path, artifact_path: str | None = None) -> None:
@@ -182,6 +193,11 @@ class NullTracker:
 
     def set_tags(self, tags: dict) -> None:
         log.debug("tracking disabled; dropping %d tags", len(tags))
+
+    @contextmanager
+    def nested_run(self, run_name: str | None = None):
+        log.debug("tracking disabled; not opening nested run %s", run_name)
+        yield self
 
 
 def configure(cfg, experiment: str | None = None) -> str:
