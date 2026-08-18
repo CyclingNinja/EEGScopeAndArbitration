@@ -157,7 +157,11 @@ class EEGNet(AbstractModel):
         return self._inner(x)
 
 
-@register("tcn")
+# Registered under its own name, not "tcn": the local collapsing Tcn in tcn.py
+# owns that key. Both registered "tcn" once and the dict silently kept whichever
+# imported last, so the pipeline built braindecode's per-timestep TCN and its
+# uncollapsed output crashed the loss.
+@register("braindecode_tcn")
 class BraindecodeTCN(AbstractModel):
     def __init__(
         self,
@@ -168,11 +172,9 @@ class BraindecodeTCN(AbstractModel):
         n_filters=2,
         kernel_size=12,
         drop_prob=0.5,
-        add_log_softmax=False,
     ):
         super().__init__(n_channels, n_classes, input_window_samples)
-        # braindecode's TCN is length-agnostic: it takes no n_times, and
-        # add_log_softmax was removed (it now returns logits).
+        # braindecode's TCN is length-agnostic: it takes no n_times.
         self._inner = _TCN(
             n_chans=n_channels,
             n_outputs=n_classes,
@@ -180,7 +182,6 @@ class BraindecodeTCN(AbstractModel):
             n_filters=n_filters,
             kernel_size=kernel_size,
             drop_prob=drop_prob,
-            add_log_softmax=add_log_softmax,
         )
 
     def forward(self, x):

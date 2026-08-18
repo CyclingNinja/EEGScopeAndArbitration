@@ -470,7 +470,7 @@ def decision_evaluation(
     # recipe, so the model is rebuilt exactly as trained. A bare checkpoint with
     # no manifest is loaded as a pickled module, as before.
     artifact = DecisionArtifact.load_for_weights(model_path)
-    model = artifact.build_model() if artifact else torch.load(model_path)
+    model = artifact.build_model() if artifact else torch.load(model_path, weights_only=False)
     model.to(device)
     model.eval()
 

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import pytest
-from tomli import TOMLDecodeError
+from tomllib import TOMLDecodeError
 
 from eeg_win_stack.config.loader import load
 
@@ -57,7 +57,6 @@ class TestErrors:
     def test_malformed_toml_raises(self, tmp_path):
         params = tmp_path / "bad.toml"
         params.write_text("this is = = not valid toml")
-        # tomli.TOMLDecodeError subclasses ValueError; on the tomllib migration
-        # this import swaps to `from tomllib import TOMLDecodeError` alongside loader.py.
+        # tomllib.TOMLDecodeError subclasses ValueError.
         with pytest.raises(TOMLDecodeError):
             load(params)
