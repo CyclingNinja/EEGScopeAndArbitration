@@ -19,7 +19,7 @@ preprocess ──▶ train ──▶ evaluate ──▶ decision
 | `preprocess` | `uv run python -m eeg_win_stack.pipeline.preprocess` | `data`, `preprocessing`, `windowing`, `run` | `target/saved_windows/` (cached)              |
 | `train`      | `uv run python -m eeg_win_stack.pipeline.train`      | `target/saved_windows`; `split`, `training`, `model`, `run` | `target/saved_models/window_model/` (cached) |
 | `evaluate`   | `uv run python -m eeg_win_stack.pipeline.evaluate`   | `target/saved_windows`, `target/saved_models/window_model`; `split`, `model`, `run`, `output.training_detail_path` | `metrics.json` + `target/training_detail/` + MLflow run |
-| `decision`   | `uv run python -m eeg_win_stack.pipeline.decision`   | `target/training_detail`; `decision`, `output.decision_models_path`, `run` | `target/decision_results.csv` + `target/decision_metrics.json` + `target/saved_models/decision_model/` |
+| `decision`   | `uv run python -m eeg_win_stack.pipeline.decision`   | `target/training_detail`; `decision`, `output.decision_models_path`, `run` | `target/decision_metrics.json` + `target/saved_models/decision_model/` + MLflow nested runs |
 
 Each stage entry point is a thin `main()` that calls `eeg_win_stack.config.load()`
 to read `params.toml` and then runs the relevant subpackage
@@ -156,12 +156,11 @@ dvc metrics diff                 # compare metrics against the last commit
 
 ### 2. MLflow
 
-The `evaluate` stage also opens an MLflow run (tracking URI `mlruns/`,
-relative to the repo root) and logs:
-
-- **params**: `model`, `learning_rate`, `weight_decay`, `batch_size`,
-  `n_epochs`, `split_way`
-- **metrics**: the same four scores written to `metrics.json`
+One MLflow run spans `train + evaluate + decision`. The `train` stage mints the
+run and logs the full parameter set, the per-epoch curves as stepped metrics,
+and the checkpoint as an artifact; `evaluate` and `decision` resume that same
+run to add their metrics. Tracking URI defaults to `mlruns/`, relative to the
+repo root.
 
 Browse and compare runs visually with:
 
@@ -169,8 +168,14 @@ Browse and compare runs visually with:
 mlflow ui                        # serves the dashboard from ./mlruns
 ```
 
+Local runs land in the experiment **`eeg_win_stack_local`** — the `_local`
+suffix is added whenever `run.use_azure_artifacts` is false.
+
 `mlruns/` is gitignored — it is a local experiment log, not a versioned
 artifact.
+
+See [`mlflow-tracking.md`](mlflow-tracking.md) for setup, the full list of what
+each stage logs, artifact storage, and troubleshooting.
 
 ## What gets cached vs. committed
 
@@ -179,25 +184,33 @@ artifact.
 | `target/saved_windows/`   | DVC cache (`cache: true`) | no |
 | `target/saved_models/window_model/` | DVC cache (`cache: true`) | no |
 | `target/saved_models/decision_model/` | DVC cache (`cache: true`) | no |
-| `target/training_detail/` | DVC out (`cache: false`)  | **yes** |
-| `target/decision_results.csv` | DVC out (`cache: false`) | **yes** |
+| `target/training_detail/` | DVC out (`cache: false`)  | no — `target/` is gitignored |
+| `target/decision_results.csv` | not a DVC output; local fallback only | no — `target/` is gitignored |
 | `metrics.json`            | DVC metric (`cache: false`) | **yes** |
-| `target/decision_metrics.json` | DVC metric (`cache: false`) | **yes** |
+| `target/decision_metrics.json` | DVC metric (`cache: false`) | no — `target/` is gitignored |
 | `dvc.lock`                | git                 | **yes** |
 | `mlruns/`                 | local only          | no (gitignored) |
 
 Large data and model artifacts stay in the DVC cache and out of git; the lock
-file and metrics are committed so a run can be reproduced and its scores
-reviewed in history.
+file is committed so a run can be reproduced.
+
+> **Known gap.** `.gitignore` ignores `target/` wholesale (line 104), so
+> `target/decision_metrics.json` cannot be committed even though it is declared
+> as a DVC `metrics:` output. `dvc metrics diff` and `dvc exp show` therefore
+> have no history to compare the decision-stage scores against — only the
+> root-level `metrics.json` from `evaluate` works as intended. Fixing it means
+> either un-ignoring that one file (`!target/decision_metrics.json`) or moving
+> it out of `target/`.
 
 ## Notes / gotchas
 
 - **Model selection in `evaluate`.** The train stage saves a timestamped
-  checkpoint (`<model><timestamp>params.pt`) into `output.saved_models_path`
-  (`target/saved_models/window_model/`), and the evaluate stage loads
-  `sorted(glob("*.pt"))[-1]` — i.e. the latest by filename. If you accumulate
-  checkpoints across runs, clear that directory (or rely on `dvc repro`
-  rebuilding it) to be sure you evaluate the intended model.
+  checkpoint (`<model>_<timestamp>_params.pt`) into `output.saved_models_path`
+  (`target/saved_models/window_model/`) and records its path in the `run.json`
+  token beside it. `evaluate` reads that token, so accumulated checkpoints no
+  longer cause the wrong model to be evaluated. It falls back to the newest
+  `*.pt` by mtime only when the token is missing or stale, and logs which path
+  it took — see [`mlflow-tracking.md`](mlflow-tracking.md#the-run-token).
 - **One stage, one directory.** DVC refuses overlapping stage outputs, which is
   why the two stages write to sibling directories (`saved_models/window_model`
   and `saved_models/decision_model`) rather than sharing `saved_models/`.

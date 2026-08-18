@@ -243,10 +243,16 @@ echo '/data/' >> .gitignore
 
 ### 5.1 — Set the artifact root when starting a run
 
+> **This is now config-driven — no code change needed.** Set
+> `use_azure_artifacts = true` and `azure_artifact_root` under `[run]` in
+> `eeg_win_stack/config/params.toml`, and `eeg_win_stack/tools/tracking.py`
+> applies the `artifact_location` for you when it creates the experiment. See
+> [`mlflow-tracking.md`](mlflow-tracking.md#artifact-storage). The snippet below
+> is retained to show what that code does under the hood.
+
 MLflow resolves the artifact store from the tracking URI or from an explicit
 `artifact_location`. The simplest approach is to pass it when you create the
-experiment. In whatever file calls `mlflow.set_experiment()` (likely
-`eeg_win_stack/pipeline/evaluate.py` or a shared init):
+experiment:
 
 ```python
 import os

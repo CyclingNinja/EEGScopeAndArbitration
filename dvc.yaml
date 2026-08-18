@@ -56,9 +56,12 @@ stages:
           - output.decision_models_path
           - output.saved_models_path
           - run
+    # target/decision_results.csv is deliberately NOT an out. The per-repetition
+    # rows are a results table, and those live in MLflow as nested child runs
+    # (one per repetition) where they can be compared across runs. Declaring it
+    # here would also pin the filename, which blocks per-run naming. The stage
+    # still writes the CSV to disk as a local fallback for when tracking is off.
     outs:
-      - target/decision_results.csv:
-          cache: false
       - target/saved_models/decision_model:
           cache: true
     metrics:
