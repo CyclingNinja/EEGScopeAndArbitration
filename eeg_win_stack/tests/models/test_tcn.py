@@ -5,7 +5,7 @@ prediction per window -- including when the model is constructed for a different
 window length than it is fed. That mismatch produced the uncollapsed [8, 2, 5380]
 output which crashed NLLLoss in fresh_error.png.
 
-Requires braindecode (pinned 0.6.x on this branch); skipped where not installed.
+Requires braindecode (pinned 1.6.x); skipped where not installed.
 """
 
 from __future__ import annotations
@@ -20,11 +20,10 @@ try:
     from eeg_win_stack.models import ModelFactory
     from eeg_win_stack.models.tcn import Tcn
 except ImportError:
-    # tcn.py imports symbols from braindecode 0.6.x (this branch's pin). Skip
-    # cleanly if an incompatible braindecode is installed (e.g. 1.6.x, which
-    # relocated/removed those symbols) rather than erroring at collection.
+    # tcn.py imports symbols from braindecode.modules. Skip cleanly if an
+    # incompatible braindecode is installed rather than erroring at collection.
     pytest.skip(
-        "TCN model requires braindecode 0.6.x (this branch's pin)",
+        "TCN model requires braindecode 1.6.x (this branch's pin)",
         allow_module_level=True,
     )
 

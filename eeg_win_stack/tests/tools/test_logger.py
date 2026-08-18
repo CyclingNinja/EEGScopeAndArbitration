@@ -8,7 +8,19 @@ import sys
 
 import pytest
 
-from eeg_win_stack.tools.logger import ROOT_NAME, Logger, get_logger
+from eeg_win_stack.tools.logger import ROOT_NAME, Logger, get_logger, _owned_handlers
+
+
+def owned_handlers():
+    """Handlers this module installed, ignoring anything else on the logger.
+
+    ``Logger.configure`` sets ``propagate = False`` on the package root, and
+    pytest 9 attaches its four capture handlers (live-log, log-file, and two
+    ``LogCaptureHandler``s) to every non-propagating logger so ``caplog`` keeps
+    working. Counting raw ``.handlers`` therefore measures the test runner, not
+    the code under test.
+    """
+    return _owned_handlers(logging.getLogger(ROOT_NAME))
 
 
 @pytest.fixture(autouse=True)
@@ -32,7 +44,7 @@ def test_first_logger_installs_a_console_handler_at_info():
     log = get_logger("io")
 
     root = logging.getLogger(ROOT_NAME)
-    assert len(root.handlers) == 1
+    assert len(owned_handlers()) == 1
     assert root.level == logging.INFO
     assert log.is_enabled_for("INFO")
     assert not log.is_enabled_for(logging.DEBUG)
@@ -44,7 +56,7 @@ def test_repeat_configuration_does_not_stack_console_handlers():
     Logger.configure(level="DEBUG")
 
     root = logging.getLogger(ROOT_NAME)
-    assert len(root.handlers) == 1  # keyed by destination, so refreshed not added
+    assert len(owned_handlers()) == 1  # keyed by destination, so refreshed not added
     assert root.level == logging.DEBUG
 
 
@@ -133,8 +145,7 @@ def test_from_config_reads_the_logging_section(tmp_path):
     log.debug("verbose detail")
     Logger.reset()
 
-    root_handlers = logging.getLogger(ROOT_NAME).handlers
-    assert root_handlers == []  # console disabled, file closed by reset
+    assert owned_handlers() == []  # console disabled, file closed by reset
     assert "verbose detail" in log_file.read_text()
 
 
@@ -145,7 +156,7 @@ def test_from_config_tolerates_a_missing_section(config):
 
     root = logging.getLogger(ROOT_NAME)
     assert root.level == logging.INFO
-    assert len(root.handlers) == 1
+    assert len(owned_handlers()) == 1
 
 
 def test_unknown_level_is_rejected():
