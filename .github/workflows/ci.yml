@@ -17,7 +17,7 @@ jobs:
       fail-fast: false
       matrix:
         # py310+ envs can be added once the deferred Python migration lands.
-        toxenv: [py313, lint]
+        toxenv: [py312, py313, lint]
     steps:
       - uses: actions/checkout@v4
 
