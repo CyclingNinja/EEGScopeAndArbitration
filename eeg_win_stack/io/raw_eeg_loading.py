@@ -41,6 +41,7 @@ class RawEEGLoader:
         preload: bool = True,
         n_jobs: int = 1,
         tuab_version: str = "v3.0.1",
+        tueg_version: str = "2.0.1"
     ):
         self.tuab_path = tuab_path
         self.tueg_path = tueg_path
@@ -51,6 +52,7 @@ class RawEEGLoader:
         self.preload = preload
         self.n_jobs = n_jobs
         self.tuab_version = tuab_version
+        self.tueg_version = tueg_version
 
     def load(self) -> BaseConcatDataset:
         """Load raw TUAB and/or TUEG recordings into a BaseConcatDataset."""
